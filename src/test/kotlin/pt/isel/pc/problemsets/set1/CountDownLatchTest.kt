@@ -1,86 +1,46 @@
 package pt.isel.pc.problemsets.set1
 
 import org.junit.jupiter.api.Test
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
+import pt.isel.pc.problemsets.utils.TestHelper
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 class CountDownLatchTest {
 
     @Test
     fun testCountDownLatch() {
-        val latch = CountDownLatch(1)
-
-        val thread1 = thread {
-            Thread.sleep(2000)
-            println("Thread 1 completed")
-            latch.countDown()
+        val latch = CountDownLatch(5)
+        val helper=TestHelper(5.seconds)
+        helper.createAndStartMultiple(5) { ix, isDone ->
+            helper.thread {
+                Thread.sleep(ix*100L)
+                println("thread $ix done")
+                latch.countDown()
+            }
         }
-
-        val thread2 = thread {
-            Thread.sleep(3000)
-            println("Thread 2 completed")
-            latch.countDown()
-        }
-
-        val thread3 = thread {
-            Thread.sleep(4000)
-            println("Thread 3 completed")
-            latch.countDown()
-        }
-        val thread4 = thread {
-            Thread.sleep(4000)
-            println("Thread 3 completed")
-            latch.countDown()
-        }
-
-        thread1.join()
-        thread2.join()
-        thread3.join()
-        thread4.join()
-
         latch.await()
-
         assertEquals(0, latch.getCount(), "Latch count should be zero")
-
     }
-
 
     @Test
-    fun testWithJavaCountDownLatch() {
-        val latch = java.util.concurrent.CountDownLatch(4)
-
-        val thread1 = thread {
-            Thread.sleep(2000)
-            println("Thread 1 completed")
-            latch.countDown()
+    fun testCountDownLatchNotEnoughThreads() {
+        val latch = CountDownLatch(6)
+        val helper=TestHelper(5.seconds)
+        helper.createAndStartMultiple(5) { ix, isDone ->
+            helper.thread {
+                Thread.sleep(ix*100L)
+                println("thread $ix done")
+                latch.countDown()
+            }
         }
-
-        val thread2 = thread {
-            Thread.sleep(3000)
-            println("Thread 2 completed")
-            latch.countDown()
+        while(!helper.isDone()) {
+            if (latch.getCount()==0)
+            break
         }
-
-        val thread3 = thread {
-            Thread.sleep(4000)
-            println("Thread 3 completed")
-            latch.countDown()
-        }
-        val thread4 = thread {
-            Thread.sleep(4000)
-            println("Thread 3 completed")
-            latch.countDown()
-        }
-
-        thread1.join()
-        thread2.join()
-        thread3.join()
-        thread4.join()
-
-        latch.await()
-
-        assertEquals(0, latch.count, "Latch count should be zero")
+        assertEquals(1, latch.getCount(), "Latch count should be one")
+        assertTrue(helper.isDone(),"Since latch count didn't reach zero the latch awaits indefinitely")
 
     }
+
 }
