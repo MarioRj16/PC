@@ -15,20 +15,19 @@ class Exchanger<T> {
 
     fun exchange(myData: T): T? {
         lock.withLock {
-                while (occupied) condition.await()
-                var previous: T? = null
-                if (data == null) {
-                    data = myData
-                    condition.signalAll()
+            while (occupied) condition.await()
+            var previous: T? = null
+            if (data == null) {
+                data = myData
+                condition.signal()
                     //wait for data update
-                    while(data==myData) condition.await();
+                while(data==myData) condition.await();
 
-                    previous = data
-                    data = null
+                previous = data
+                data = null
 
-                    occupied=false
-                    condition.signalAll()
-
+                occupied=false
+                condition.signal()
                 } else {
                     occupied=true
                     previous = data
@@ -135,7 +134,13 @@ fun main() {
     val threadF = Thread {
         val myData = 432
         val receivedData = exchanger.exchange(myData)
-        println("Thread A sent $myData and received $receivedData")
+        println("Thread F sent $myData and received $receivedData")
+    }
+
+    val threadG = Thread {
+        val myData = 111
+        val receivedData = exchanger.exchange(myData)
+        println("Thread G sent $myData and received $receivedData")
     }
 
     val threadB = Thread {
@@ -160,11 +165,13 @@ fun main() {
     threadB.start()
     threadC.start()
     threadD.start()
-   // threadF.start()
+    threadF.start()
+    threadG.start()
 
     threadA.join()
     threadB.join()
     threadC.join()
     threadD.join()
-   // threadF.join()
+    threadF.join()
+    threadG.join()
 }
