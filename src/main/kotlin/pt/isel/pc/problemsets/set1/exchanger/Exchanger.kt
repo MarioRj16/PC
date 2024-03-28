@@ -4,43 +4,45 @@ import java.util.Stack
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.Semaphore
+import java.util.concurrent.locks.Condition
 import kotlin.concurrent.withLock
 
 
 class Exchanger<T> {
+
+    data class message<T>(var data:T, val locked:Condition)
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
-    private var data: T? = null
+    private var waiter: message<T>? = null
     private var occupied:Boolean=false
 
     fun exchange(myData: T): T? {
         lock.withLock {
-            while (occupied) condition.await()
+            //condition.await()
+            while(occupied) condition.await()
             var previous: T? = null
-            if (data == null) {
-                data = myData
+            if (waiter == null) {
+                waiter = message(myData,lock.newCondition())
                 condition.signal()
+                waiter!!.locked.await()
                     //wait for data update
-                while(data==myData) condition.await();
 
-                previous = data
-                data = null
 
+                previous = waiter!!.data
+                waiter = null
                 occupied=false
                 condition.signal()
                 } else {
                     occupied=true
-                    previous = data
-                    data = myData
-
-                    condition.signalAll()
+                    previous = waiter!!.data
+                    //data = myData
+                    waiter!!.data=myData
+                    waiter!!.locked.signal()
 
                     //must signal so that first thread knows data has been changed
 
                 }
-
                 return previous
-
         }
     }
 }
