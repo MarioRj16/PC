@@ -2,68 +2,52 @@ package pt.isel.pc.problemsets.set1.blockingMessageQueue
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import java.time.Duration
+import kotlin.concurrent.thread
 
 class BlockingMessageQueueTest {
+    private val duration: Duration = Duration.ofMillis(100)
 
     @Test
-    fun testEnqueueDequeue() {
-        val queue = BlockingMessageQueue<Int>(capacity = 5)
-        queue.tryEnqueue(1)
-        assertEquals(1, queue.dequeue())
-    }
-
-    @Test
-    fun testEnqueueMultiple() {
-        val queue = BlockingMessageQueue<Int>(capacity = 5)
-        val messages = listOf(1, 2, 3)
-        assertTrue(queue.tryEnqueue(messages))
-        assertEquals(1, queue.dequeue())
-        assertEquals(2, queue.dequeue())
-        assertEquals(3, queue.dequeue())
-    }
-
-    @Test
-    fun testEnqueueFullQueue() {
+    fun `enqueue and dequeue messages`() {
         val queue = BlockingMessageQueue<Int>(capacity = 3)
-        queue.tryEnqueue(1)
-        queue.tryEnqueue(2)
-        queue.tryEnqueue(3)
-        assertFalse(queue.tryEnqueue(4, timeout = 100, unit = TimeUnit.MILLISECONDS))
+        queue.tryEnqueue(listOf(10), duration)
+        queue.tryEnqueue(listOf(20), duration)
+        queue.tryEnqueue(listOf(30), duration)
+
+        assertEquals(10, queue.tryDequeue(duration))
+        assertEquals(20, queue.tryDequeue(duration))
+        assertEquals(30, queue.tryDequeue(duration))
     }
 
     @Test
-    fun testDequeueEmptyQueue() {
-        val queue = BlockingMessageQueue<Int>(capacity = 5)
-        assertNull(queue.dequeue(timeout = 100, unit = TimeUnit.MILLISECONDS))
+    fun `enqueue with timeout`() {
+        val queue = BlockingMessageQueue<Int>(capacity = 1)
+
+        assertTrue(queue.tryEnqueue(listOf(1), timeout = Duration.ofMillis(1000)))
+        assertFalse(queue.tryEnqueue(listOf(2), timeout = Duration.ofMillis(100))) // Queue is full, should return false
     }
 
     @Test
-    fun testEnqueueTimeout() {
-        val queue = BlockingMessageQueue<Int>(capacity = 2)
-        val executor = Executors.newSingleThreadExecutor()
-        executor.submit {
-            Thread.sleep(500) // Sleep for 500 milliseconds
-            assertTrue(queue.tryEnqueue(1, timeout = 100, unit = TimeUnit.MILLISECONDS))
+    fun `dequeue with timeout`() {
+        val queue = BlockingMessageQueue<Int>(capacity = 1)
+
+        assertNull(queue.tryDequeue(timeout = Duration.ofMillis(100))) // Queue is empty, should return null
+
+        thread {
+            Thread.sleep(50)
+            queue.tryEnqueue(listOf(1),  Duration.ofMillis(200))
         }
-        assertFalse(queue.tryEnqueue(2, timeout = 200, unit = TimeUnit.MILLISECONDS))
-        executor.shutdown()
-        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertEquals(1, queue.tryDequeue(timeout = Duration.ofMillis(200))) // Should dequeue successfully
     }
 
     @Test
-    fun testDequeueTimeout() {
+    fun `enqueue with multiple items and timeout`() {
         val queue = BlockingMessageQueue<Int>(capacity = 2)
-        val executor = Executors.newSingleThreadExecutor()
-        executor.submit {
-            Thread.sleep(500) // Sleep for 500 milliseconds
-            assertNull(queue.dequeue(timeout = 100, unit = TimeUnit.MILLISECONDS))
-        }
-        queue.tryEnqueue(1)
-        assertNotNull(queue.dequeue(timeout = 200, unit = TimeUnit.MILLISECONDS))
-        executor.shutdown()
-        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertTrue(queue.tryEnqueue(listOf(1, 2), timeout = Duration.ofMillis(100)))
+        assertFalse(queue.tryEnqueue(listOf(3, 4), timeout = Duration.ofMillis(100))) // Queue is full, should return false
     }
 }
 
