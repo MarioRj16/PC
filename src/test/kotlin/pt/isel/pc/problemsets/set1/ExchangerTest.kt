@@ -1,4 +1,4 @@
-package pt.isel.pc.problemsets.set1.exchanger
+package pt.isel.pc.problemsets.set1
 
 import org.junit.jupiter.api.Test
 import java.util.concurrent.Exchanger
