@@ -71,8 +71,8 @@ class ThreadPoolExecutor(
                 val currentTime = System.nanoTime()
                 val y =pendingTask.time
                 val elapsedTime = currentTime - pendingTask.time
-                val x=keepAliveTime.toLongMilliseconds()
-                if (elapsedTime < keepAliveTime.toLongMilliseconds()) {
+                val x=keepAliveTime.inWholeNanoseconds
+                if (elapsedTime < keepAliveTime.inWholeNanoseconds) {
                     execute(pendingTask.value)
                 }
             }
