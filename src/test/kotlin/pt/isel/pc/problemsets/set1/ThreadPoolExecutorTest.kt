@@ -1,4 +1,5 @@
 package pt.isel.pc.problemsets.set1
+import pt.isel.pc.problemsets.utils.TestHelper
 import java.util.concurrent.RejectedExecutionException
 import kotlin.concurrent.thread
 import kotlin.test.Test
@@ -17,19 +18,16 @@ class ThreadPoolExecutorTest {
         val executor = ThreadPoolExecutor(5,Duration.INFINITE)
         val taskCount = 10
         val executedTasks = mutableListOf<Int>()
-
-        for (i in 1..taskCount) {
-
+        TestHelper(10.seconds).createAndStartMultiple(taskCount,{idx, isDone ->
             executor.execute(Runnable {
-                executedTasks.add(i)
-            })
-
-        }
+            executedTasks.add(idx)
+        })}
+        )
 
         assertTrue {  executor.awaitTermination(5.seconds)}
         executor.awaitTermination(5.seconds)
         assertEquals(taskCount, executedTasks.size)
-        assertTrue { executedTasks.all { it in 1..taskCount } }
+        assertTrue { executedTasks.all { it in 0 until taskCount } }
     }
 
 
@@ -40,19 +38,15 @@ class ThreadPoolExecutorTest {
         val taskCount = 10
         val executedTasks = mutableListOf<Int>()
 
-        for (i in 1..taskCount) {
-
+        TestHelper(10.seconds).createAndStartMultiple(taskCount,{idx, isDone ->
             executor.execute(Runnable {
-                executedTasks.add(i)
+                executedTasks.add(idx)
                 Thread.sleep(10)
-            })
+            })}
+        )
 
-        }
-
-        //assertTrue {  executor.awaitTermination(5.seconds)}
-        executor.awaitTermination(10.seconds)
+        assertTrue {  executor.awaitTermination(10.seconds)}
         assertEquals(maxThreadPool,executedTasks.size )
-        assertTrue { executedTasks.all { it in 1..executedTasks.size } }
     }
 
     @OptIn(ExperimentalTime::class)
