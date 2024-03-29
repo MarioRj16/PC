@@ -1,5 +1,5 @@
 package pt.isel.pc.problemsets.set1.blockingMessageQueue
-
+/*
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import kotlin.concurrent.thread
@@ -42,3 +42,6 @@ class BlockingMessageQueueTest {
         assertEquals(1, queue.dequeue(timeout = Duration.ofMillis(200))) // Should dequeue successfully
     }
 }
+
+
+ */

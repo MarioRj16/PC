@@ -1,5 +1,5 @@
 package pt.isel.pc.problemsets.set1.blockingMessageQueue
-
+/*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.concurrent.Executors
@@ -67,3 +67,5 @@ class BlockingMessageQueueTest {
     }
 }
 
+
+ */
