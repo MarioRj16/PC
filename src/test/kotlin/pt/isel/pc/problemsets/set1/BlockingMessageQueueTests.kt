@@ -141,7 +141,7 @@ class BlockingMessageQueueTests {
                             break
                         }
                         val value = (localIndex until (localIndex+size)).toList()
-                        //if (msgQueue.tryEnqueue(value, Duration.ofHours(9999999999999999)))
+                        msgQueue.tryEnqueue(value, Duration.ofHours(10))
 
                     }
                     writersDone.countDown()
