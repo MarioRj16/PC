@@ -23,66 +23,74 @@ class BlockingMessageQueue<T>(private val capacity: Int) {
 
     private val lock = ReentrantLock()
 
-    private fun availableSpaces(): Int = capacity + dequeueRequests.count - messageQueue.count
+    private fun availableSpaces(messages: List<T>): Boolean = messages.size <= capacity - messageQueue.count
 
     private val messageQueue = NodeLinkedList<T>()
-    private val enqueueRequests = NodeLinkedList<EnqueueRequest<T>>()
-    private val dequeueRequests = NodeLinkedList<DequeueRequest<T>>()
+    private val producersQueue = NodeLinkedList<EnqueueRequest<T>>()
+    private val consumersQueue = NodeLinkedList<DequeueRequest<T>>()
+
+    private fun sendToMQ(messages: List<T>){
+        for (message in messages){
+            messageQueue.enqueue(message)
+        }
+    }
+
+    private fun notifyProducer(){
+        while (producersQueue.notEmpty && availableSpaces(producersQueue.headValue!!.message)){
+            val producer = producersQueue.pull().value
+            producer.isDone = true
+            producer.condition.signal()
+            sendToMQ(producer.message)
+        }
+    }
 
     @Throws(InterruptedException::class)
     fun tryEnqueue(messages: List<T>, timeout: Duration): Boolean {
         lock.withLock {
-        fun addToDequeueAndMessageQueue(){
-            for ((idx, message) in messages.withIndex()){
-                if(dequeueRequests.notEmpty){
-                    val dequeueRequest = dequeueRequests.pull()
-                    dequeueRequest.value.message = message
-                    dequeueRequest.value.condition.signal()
-                } else {
-                    for (element in messages.drop(idx)){
-                        messageQueue.enqueue(element)
-                    }
-                    break
-                }
-            }
-        }
-
+            require(messages.size <= capacity)
             require(messages.isNotEmpty()){" Cannot enqueue empty list of messages"}
+            println("Producer wants to send $messages")
+            println("Producer found ${messageQueue.count} messages in MQ, ${producersQueue.count} producers and ${consumersQueue.count} consumers")
             // fast-path
-            if(messages.size <= availableSpaces()){
-                // If there's consumer threads waiting, then queue is empty.
-                addToDequeueAndMessageQueue()
+            if(availableSpaces(messages)){
+                // If MQ is empty then we can deliver one message directly to the consumer
+                println("Producer is going to fast Path")
+                if(messageQueue.empty && consumersQueue.notEmpty && !(consumersQueue.headValue!!.isDone)){
+                    val consumer = consumersQueue.headValue!!
+                    consumer.message = messages.first()
+                    consumer.condition.signal()
+                    sendToMQ(messages.drop(1))
+                    println("Producer delivered ${consumer.message} to consumer and sent ${messages.drop(1)} to MQ")
+                } else {
+                    println("Producer sent ${messages} to MQ")
+                    sendToMQ(messages)
+                }
                 return true
             }
             // wait-path
 
+            println("Producer is going to wait-path")
             var timeoutInNanos = timeout.toNanos()
-            val selfNode = enqueueRequests.enqueue(EnqueueRequest(lock.newCondition(), messages, false))
+            val myRequest = producersQueue.enqueue(EnqueueRequest(lock.newCondition(), messages, false))
             while(true){
                 try {
-                    timeoutInNanos = selfNode.value.condition.awaitNanos(timeoutInNanos)
+                    timeoutInNanos = myRequest.value.condition.awaitNanos(timeoutInNanos)
                 } catch (e: InterruptedException){
-                    if(selfNode.value.isDone){
+                    if(myRequest.value.isDone){
                         Thread.currentThread().interrupt()
                         return true
                     }
-                    //enqueueRequests.remove(selfNode)
+                    producersQueue.remove(myRequest)
                     // A cancellation does not create conditions to complete other requests
                     throw e
                 }
-                // check for space in message queue
-                if(messages.size <= availableSpaces()){
-                    enqueueRequests.remove(selfNode)
-                    addToDequeueAndMessageQueue()
-                    return true
-                }
 
-                if(selfNode.value.isDone){
+                if(myRequest.value.isDone){
                     return true
                 }
                 // check for timeout
                 if(timeoutInNanos <= 0){
-                    enqueueRequests.remove(selfNode)
+                    producersQueue.remove(myRequest)
                     // A cancellation does not create conditions to complete other requests
                     return false
                 }
@@ -93,39 +101,43 @@ class BlockingMessageQueue<T>(private val capacity: Int) {
     @Throws(InterruptedException::class)
     fun tryDequeue(timeout: Duration): T? {
         lock.withLock {
+            println("consumer found ${messageQueue.count} messages in MQ, ${producersQueue.count} producers and ${consumersQueue.count} consumers")
             // fast-path
-            if(messageQueue.notEmpty){
-                if(enqueueRequests.notEmpty)
-                    enqueueRequests.first().condition.signal()
-                val msg = messageQueue.pull()
-                print(msg.value)
-                return msg.value
+            if(messageQueue.notEmpty && consumersQueue.empty){
+                println("Consumer is going to fast-path")
+                val message = messageQueue.pull().value
+                println("Consumer pulled $message from the MQ")
+                val shouldNotifyProducer = producersQueue.notEmpty && availableSpaces(producersQueue.headValue!!.message)
+                if(messageQueue.empty && shouldNotifyProducer){
+                    println("Consumer will notify producer(s)")
+                    notifyProducer()
+                }
+                return message
             }
-
             // wait-path
-            val selfNode = dequeueRequests.enqueue(DequeueRequest(lock.newCondition(), null))
+            println("Consumer is going to wait-path")
+            val myRequest = consumersQueue.enqueue(DequeueRequest(lock.newCondition(), null))
             var timeoutInNanos = timeout.toNanos()
             while(true){
                 try {
-                    if(enqueueRequests.notEmpty)
-                        enqueueRequests.first().condition.signal()
-                    timeoutInNanos = selfNode.value.condition.awaitNanos(timeoutInNanos)
+                    timeoutInNanos = myRequest.value.condition.awaitNanos(timeoutInNanos)
                 } catch (e: InterruptedException){
-                    if(selfNode.value.isDone){
+                    if(myRequest.value.isDone){
                         Thread.currentThread().interrupt()
-                        return selfNode.value.message
+                        return myRequest.value.message
                     }
-                    dequeueRequests.remove(selfNode)
+                    consumersQueue.remove(myRequest)
                     // A cancellation does not create conditions to complete other requests
                     throw e
                 }
+                println("Consumer woke up! Message: ${myRequest.value.message}")
                 // check for success
-                if(selfNode.value.isDone){
-                    return selfNode.value.message
+                consumersQueue.remove(myRequest)
+                if(myRequest.value.isDone){
+                    return myRequest.value.message
                 }
                 // check for timeout
                 if(timeoutInNanos <= 0){
-                    dequeueRequests.remove(selfNode)
                     // A cancellation does not create conditions to complete other requests
                     return null
                 }
