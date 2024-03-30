@@ -1,4 +1,5 @@
 package pt.isel.pc.problemsets.set1
+import org.junit.jupiter.api.Assertions.assertFalse
 import pt.isel.pc.problemsets.utils.TestHelper
 import java.util.concurrent.RejectedExecutionException
 import kotlin.concurrent.thread
@@ -18,14 +19,14 @@ class ThreadPoolExecutorTest {
         val executor = ThreadPoolExecutor(5,Duration.INFINITE)
         val taskCount = 10
         val executedTasks = mutableListOf<Int>()
-        TestHelper(10.seconds).createAndStartMultiple(taskCount,{idx, isDone ->
+        val test=TestHelper(10.seconds)
+        test.createAndStartMultiple(taskCount,{idx, isDone ->
             executor.execute(Runnable {
             executedTasks.add(idx)
         })}
         )
 
         assertTrue {  executor.awaitTermination(5.seconds)}
-        executor.awaitTermination(5.seconds)
         assertEquals(taskCount, executedTasks.size)
         assertTrue { executedTasks.all { it in 0 until taskCount } }
     }
@@ -37,15 +38,16 @@ class ThreadPoolExecutorTest {
         val executor = ThreadPoolExecutor(maxThreadPool, Duration.ZERO)
         val taskCount = 10
         val executedTasks = mutableListOf<Int>()
-
-        TestHelper(10.seconds).createAndStartMultiple(taskCount,{idx, isDone ->
+        val test=TestHelper(10.seconds)
+        test.createAndStartMultiple(taskCount,{idx, isDone ->
             executor.execute(Runnable {
                 executedTasks.add(idx)
                 Thread.sleep(10)
+
             })}
         )
 
-        assertTrue {  executor.awaitTermination(10.seconds)}
+        assertTrue {  executor.awaitTermination(5.seconds)}
         assertEquals(maxThreadPool,executedTasks.size )
     }
 
@@ -76,7 +78,7 @@ class ThreadPoolExecutorTest {
 
     @OptIn(ExperimentalTime::class)
     @Test
-    fun testAwaitTermination() {
+    fun testAwaitErrorTermination() {
         val executor = ThreadPoolExecutor(5, Duration.INFINITE)
 
         executor.execute(Runnable {
@@ -86,5 +88,18 @@ class ThreadPoolExecutorTest {
         val result = executor.awaitTermination(3.seconds)
 
         assertTrue(result)
+    }
+
+    @Test
+    fun testAwaitTermination() {
+        val executor = ThreadPoolExecutor(5, Duration.INFINITE)
+
+        executor.execute(Runnable {
+            Thread.sleep(2000) // Simulate a long-running task
+        })
+
+        val result = executor.awaitTermination(1.seconds)
+
+        assertFalse(result)
     }
 }

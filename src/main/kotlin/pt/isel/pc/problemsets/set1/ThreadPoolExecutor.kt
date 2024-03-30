@@ -4,6 +4,7 @@ import pt.isel.pc.problemsets.utils.NodeLinkedList
 import java.util.*
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.max
@@ -16,7 +17,7 @@ class ThreadPoolExecutor(
 ) {
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
-    private var nOfThreads : Int = 0
+    private var nOfThreads = AtomicInteger(0)
     private var workItems = NodeLinkedList<Runnable>()
     private var shuttedDown = false
 
@@ -28,13 +29,14 @@ class ThreadPoolExecutor(
     fun execute(runnable: Runnable): Unit {
         lock.withLock {
             if(shuttedDown) throw RejectedExecutionException()
-            if(nOfThreads< maxThreadPoolSize) {
-                nOfThreads++
+            if(nOfThreads.get()< maxThreadPoolSize) {
+                nOfThreads.incrementAndGet()
                 Thread{
                     try {
                         runnable.run()
                     }finally {
-                        nOfThreads--
+                        nOfThreads.decrementAndGet()
+                        if(nOfThreads.get()==0) condition.signal()
                         processPendingTasks()
                     }
                 }.start()
@@ -47,19 +49,20 @@ class ThreadPoolExecutor(
             condition.signalAll()
         }
     }
+
     @OptIn(ExperimentalTime::class)
     @Throws(InterruptedException::class)
     fun awaitTermination(timeout: Duration): Boolean {
         lock.withLock {
-            val endTime = System.nanoTime() + timeout.toLongMilliseconds()
-            while (nOfThreads > 0) {
-                val remainingTime = max(0, endTime - System.nanoTime())
-                if (remainingTime <= 0) {
-                    return false // Timeout expired
-                }
+            var remainingTime = timeout.toLongMilliseconds()
+
+            while ( nOfThreads.get() > 0 && remainingTime > 0) {
+                val startTime = System.currentTimeMillis()
                 condition.await(remainingTime, TimeUnit.MILLISECONDS)
+                val elapsedTime = System.currentTimeMillis() - startTime
+                remainingTime -= elapsedTime
             }
-            return true // All tasks completed
+            return nOfThreads.get() == 0
         }
     }
 
