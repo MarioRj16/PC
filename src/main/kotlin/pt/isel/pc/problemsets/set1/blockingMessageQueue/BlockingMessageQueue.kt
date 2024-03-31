@@ -7,6 +7,8 @@ import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+
+
 class BlockingMessageQueue<T>(private val capacity: Int) {
 
     private val logger = LoggerFactory.getLogger(BlockingMessageQueue::class.java)
@@ -48,16 +50,19 @@ class BlockingMessageQueue<T>(private val capacity: Int) {
         }
     }
 
+    private fun notifyConsumer(messages: List<T>): DequeueRequest<T> {
+        val consumer = consumersQueue.headValue!!
+        consumer.message = messages.first()
+        consumer.condition.signal()
+        return consumer
+    }
+
     private fun producerFastPath(messages: List<T>){
         logger.debug("Producer is going to fast Path")
         // If MQ is empty then we can deliver one message directly to the consumer
         if(messageQueue.empty && consumersQueue.notEmpty && !(consumersQueue.headValue!!.isDone)){
+            val consumer = notifyConsumer(messages)
             val messagesToSendToMQ = messages.drop(1)
-
-            val consumer = consumersQueue.headValue!!
-            consumer.message = messages.first()
-            consumer.condition.signal()
-
             sendToMQ(messagesToSendToMQ)
             logger.debug(
                 "Producer delivered {} to consumer and sent {} to MQ",

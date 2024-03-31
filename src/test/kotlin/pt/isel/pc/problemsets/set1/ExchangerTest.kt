@@ -1,43 +1,58 @@
 package pt.isel.pc.problemsets.set1
 
 import org.junit.jupiter.api.Test
-import java.util.concurrent.Exchanger
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.UUID
 import kotlin.test.assertEquals
 
 class ExchangerTest {
 
+
     @Test
-    fun testExchangerStress() {
+    fun testExchange(){
+        val exchanger = Exchanger<Int>()
+        val dataA = 111
+        val dataB = 222
+        val threadA = Thread {
+            val receivedData = exchanger.exchange(dataA)
+            assertEquals(receivedData,dataB)
+        }
+
+        val threadB = Thread {
+            val receivedData = exchanger.exchange(dataB)
+            assertEquals(receivedData,dataA)
+        }
+
+        threadA.start()
+        threadB.start()
+
+        threadA.join()
+        threadB.join()
+
+
+    }
+    @Test
+    fun testMultipleThreadsExchange() {
         val exchanger = Exchanger<String>()
-        val numThreads = 10
-        val executor = Executors.newFixedThreadPool(numThreads)
-        val successCounter = AtomicInteger()
 
-        val latch = java.util.concurrent.CountDownLatch(numThreads)
-
-        repeat(numThreads) {
-            executor.submit {
-                try {
-                    val data = "Data from Thread ${Thread.currentThread().id}"
-                    val exchangedData = exchanger.exchange(data)
-                    if (exchangedData == data) {
-                        successCounter.incrementAndGet()
-                    }
-                } catch (e: InterruptedException) {
-                    e.printStackTrace()
-                } finally {
-                    latch.countDown()
-                }
+        val resultsMap = mutableMapOf<String, String>()
+        // Create and start threads
+        val numberOfThreads = 100
+        val threads = List(numberOfThreads) {
+            val msg = UUID.randomUUID().toString()
+            Thread {
+                resultsMap[msg] = exchanger.exchange(msg)
             }
         }
 
-        executor.shutdown()
-        executor.awaitTermination(10, TimeUnit.SECONDS)
+        threads.forEach { it.start() }
 
-        assertEquals(numThreads, successCounter.get())
+        // Wait for all threads to finish
+        threads.forEach { it.join() }
+
+        // Ensure all data values were received
+        assertEquals(numberOfThreads, resultsMap.size)
+        val expected = resultsMap.entries.map { entry -> setOf(entry.key, entry.value) }.toSet().size
+        assertEquals(numberOfThreads / 2, expected)
     }
 }
 
