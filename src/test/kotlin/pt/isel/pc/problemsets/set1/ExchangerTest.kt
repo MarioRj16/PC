@@ -1,14 +1,8 @@
 package pt.isel.pc.problemsets.set1
 
 import org.junit.jupiter.api.Test
-import pt.isel.pc.problemsets.utils.TestFunction
-import pt.isel.pc.problemsets.utils.TestHelper
-import java.util.concurrent.Exchanger
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.UUID
 import kotlin.test.assertEquals
-import kotlin.time.Duration
 
 class ExchangerTest {
 
@@ -38,21 +32,15 @@ class ExchangerTest {
     }
     @Test
     fun testMultipleThreadsExchange() {
-        val exchanger = Exchanger<Int>()
+        val exchanger = Exchanger<String>()
 
-        // Define data values for each thread
-        val data = listOf(111, 222, 333, 444, 555, 666)
-
-        // List to hold received data from each thread
-        val receivedData = mutableListOf<Int>()
-
+        val resultsMap = mutableMapOf<String, String>()
         // Create and start threads
-        val threads = List(6) { index ->
+        val numberOfThreads = 100
+        val threads = List(numberOfThreads) {
+            val msg = UUID.randomUUID().toString()
             Thread {
-                val received = exchanger.exchange(data[index])
-                synchronized(receivedData) {
-                    receivedData.add(received)
-                }
+                resultsMap[msg] = exchanger.exchange(msg)
             }
         }
 
@@ -62,20 +50,9 @@ class ExchangerTest {
         threads.forEach { it.join() }
 
         // Ensure all data values were received
-        assertEquals(6, receivedData.size)
-        var count=0
-        for(i in receivedData){
-            val idx=data.indexOf(i)
-            assertEquals(receivedData[idx],data[count])
-            assertEquals(i,data[idx])
-            count++
-        }
-
-
-        // Ensure each thread received the correct data value
-        data.forEach {
-            assert(receivedData.contains(it))
-        }
+        assertEquals(numberOfThreads, resultsMap.size)
+        val expected = resultsMap.entries.map { entry -> setOf(entry.key, entry.value) }.toSet().size
+        assertEquals(numberOfThreads / 2, expected)
     }
 }
 
