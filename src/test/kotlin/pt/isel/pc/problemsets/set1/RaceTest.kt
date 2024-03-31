@@ -4,17 +4,18 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.time.Duration.Companion.seconds
+import java.time.Duration.*
+
 
 class RaceTest {
     @Test
     fun <T> testRaceTimesOut(){
         val suppliers =
             listOf(
-                { Thread.sleep(400); (1 as T) },
-                { Thread.sleep(600); (2 as T) }
+                { Thread.sleep(400)},
+                { Thread.sleep(600)}
             )
-        val timeout= 0.2.seconds
+        val timeout= ofMillis(200)
         assertNull(race(suppliers,timeout),"testRaceTimesOut Successful")
     }
 
@@ -25,7 +26,7 @@ class RaceTest {
                 { Thread.sleep(400); 1 as T},
                 { Thread.sleep(600);2 as T}
             )
-        val timeout= 3.seconds
+        val timeout= ofSeconds(2)
        assertNotNull(race(suppliers,timeout),"testRaceDoesNotTimeOut Successful")
     }
 }

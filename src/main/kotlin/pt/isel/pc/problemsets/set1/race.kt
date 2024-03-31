@@ -1,28 +1,21 @@
 package pt.isel.pc.problemsets.set1
-
-import kotlin.time.Duration
+import java.time.Duration
 
 @Throws(InterruptedException::class)
 fun <T> race(suppliers: List<()->T>, timeout: Duration): T?{
-    var x:T?=null
-    var endTime= System.nanoTime() + timeout.inWholeNanoseconds
+    var x:T? = null
     suppliers.forEach {
-        try {
-            val thread = Thread {
-                x = it()
-                if(endTime - System.nanoTime() <= 0) throw RuntimeException()
-                throw InterruptedException()
-            }
-            thread.start()
-        }catch (e: InterruptedException){
+        Thread {
+            val result= it();
             Thread.currentThread().threadGroup.interrupt()
-            return x
-
-        } catch (e: RuntimeException){
-            Thread.currentThread().threadGroup.interrupt()
-            return null
-        }
-
+            x = result
+        }.start()
     }
-    return null
+    val z= Thread.getAllStackTraces()
+    for(t in Thread.getAllStackTraces().keys){
+        if(t!= Thread.currentThread()){
+            t.join(timeout.toNanos())
+        }
+    }
+    return x
 }
