@@ -1,23 +1,23 @@
 package pt.isel.pc.problemsets.set1
 
 import pt.isel.pc.problemsets.utils.NodeLinkedList
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.math.max
-import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
+
 
 class ThreadPoolExecutor(
     private val maxThreadPoolSize: Int,
     private val keepAliveTime: Duration,
 ) {
     private val lock = ReentrantLock()
+
     private val condition = lock.newCondition()
-    private var nOfThreads : Int = 0
-    private var workItems = NodeLinkedList<Runnable>()
+    private var nOfThreads = AtomicInteger(0)
+    private val workItems = NodeLinkedList<Runnable>()
     private var shuttedDown = false
 
     init {
@@ -26,56 +26,68 @@ class ThreadPoolExecutor(
 
     @Throws(RejectedExecutionException::class)
     fun execute(runnable: Runnable): Unit {
-        lock.withLock {
-            if(shuttedDown) throw RejectedExecutionException()
-            if(nOfThreads< maxThreadPoolSize) {
-                nOfThreads++
-                Thread{
-                    try {
-                        runnable.run()
-                    }finally {
-                        nOfThreads--
-                        processPendingTasks()
+        if(shuttedDown) throw RejectedExecutionException()
+        lock.lock()
+        if(nOfThreads.get()< maxThreadPoolSize) {
+            nOfThreads.incrementAndGet()
+            lock.unlock()
+            Thread{
+                try {
+                   // println("entry")
+                    var x:Runnable?=runnable
+                    while(x!=null){
+                        if(shuttedDown) throw RejectedExecutionException()
+                        x.run()
+                        println("here")
+                        x=processPendingTasks()
                     }
-                }.start()
-            }else workItems.enqueue(runnable)
+                  //  println("left")
+                }
+                finally {
+                    lock.withLock {
+                    nOfThreads.decrementAndGet()
+                    if(nOfThreads.get()==0) condition.signalAll()}
+                }
+            }.start()
+        }else {
+            workItems.enqueue(runnable)
+            lock.unlock()
         }
+
     }
     fun shutdown(): Unit {
-        lock.withLock {
-            shuttedDown=true
-            condition.signalAll()
-        }
+        shuttedDown=true
     }
-    @OptIn(ExperimentalTime::class)
+
     @Throws(InterruptedException::class)
     fun awaitTermination(timeout: Duration): Boolean {
         lock.withLock {
-            val endTime = System.nanoTime() + timeout.toLongMilliseconds()
-            while (nOfThreads > 0) {
-                val remainingTime = max(0, endTime - System.nanoTime())
-                if (remainingTime <= 0) {
-                    return false // Timeout expired
+            var remainingTime = timeout.toNanos()
+            while ( true) {
+                try {
+                    remainingTime=condition.awaitNanos(remainingTime)
+                }catch(e:InterruptedException){
+                    throw e
                 }
-                condition.await(remainingTime, TimeUnit.MILLISECONDS)
+                if(nOfThreads.get() == 0) return true
+                if(remainingTime <= 0) return false
             }
-            return true // All tasks completed
         }
     }
 
-    @OptIn(ExperimentalTime::class)
-    private fun processPendingTasks() {
+
+    private fun processPendingTasks() :Runnable?{
         lock.withLock {
             while (workItems.notEmpty) {
                 val pendingTask = workItems.pull()
                 val currentTime = System.nanoTime()
-                val y =pendingTask.time
                 val elapsedTime = currentTime - pendingTask.time
-                val x=keepAliveTime.inWholeNanoseconds
-                if (elapsedTime < keepAliveTime.inWholeNanoseconds) {
-                    execute(pendingTask.value)
+                if (elapsedTime <= keepAliveTime.toNanos()) {
+                   // println("returned")
+                    return pendingTask.value
                 }
             }
+            return null
         }
     }
 
