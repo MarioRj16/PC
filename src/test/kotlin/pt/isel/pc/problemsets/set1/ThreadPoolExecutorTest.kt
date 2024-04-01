@@ -15,11 +15,9 @@ class ThreadPoolExecutorTest {
 
     @Test
     fun testExecute() {
-        var count=0
-        repeat(1000){
         val executor = ThreadPoolExecutor(5,Duration.ofSeconds(10) )
         val taskCount = 10
-            val times=AtomicInteger(0)
+        val times=AtomicInteger(0)
         val test=TestHelper(10.seconds)
         test.createAndStartMultiple(taskCount,{idx, isDone ->
             executor.execute(Runnable {
@@ -27,17 +25,32 @@ class ThreadPoolExecutorTest {
 
         })}
         )
-            test.join()
-        println(count++)
+        test.join()
         assertTrue {  executor.awaitTermination(Duration.ofSeconds(5))}
         assertEquals(taskCount, times.get())
-    }}
+    }
 
 
     @Test
+    fun testExecuteMultiple() {
+        repeat(1000){
+            val executor = ThreadPoolExecutor(5,Duration.ofSeconds(10) )
+            val taskCount = 10
+            val times=AtomicInteger(0)
+            val test=TestHelper(10.seconds)
+            test.createAndStartMultiple(taskCount,{idx, isDone ->
+                executor.execute(Runnable {
+                    times.incrementAndGet()
+
+                })}
+            )
+            test.join()
+            assertTrue {  executor.awaitTermination(Duration.ofSeconds(5))}
+            assertEquals(taskCount, times.get())
+        }}
+
+    @Test
     fun testExecuteTimedOut() {
-        var count=0
-        repeat(1000) {
             val maxThreadPool = 1
             val executor = ThreadPoolExecutor(maxThreadPool, Duration.ofNanos(1))
             val taskCount = 2
@@ -54,11 +67,6 @@ class ThreadPoolExecutorTest {
             test.join()
             assertTrue { executor.awaitTermination(Duration.ofSeconds(4)) }
             assertEquals(maxThreadPool,executedTasks.size )
-           if (maxThreadPool==executedTasks.size) count++
-        }
-        println(count)
-
-
     }
 
     @Test
@@ -96,6 +104,16 @@ class ThreadPoolExecutorTest {
         val result = executor.awaitTermination(Duration.ofSeconds(3))
 
         assertTrue(result)
+    }
+
+    @Test
+    fun testThrow(){
+        val executor = ThreadPoolExecutor(5, Duration.ofSeconds(10))
+        val th=Thread{executor.execute(Runnable {
+            Thread.sleep(2000)})}
+        th.start()
+        th.interrupt()
+        assertTrue(th.isInterrupted)
     }
 
     @Test

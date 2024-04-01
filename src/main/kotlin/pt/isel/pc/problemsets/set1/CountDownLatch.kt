@@ -4,11 +4,22 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/**
+ * A synchronization aid that allows one or more threads to wait until a set of operations
+ * being performed in other threads completes.
+ *
+ * @param count the number of times `countDown` must be invoked before threads can pass
+ * through `await`
+ */
 class CountDownLatch(private val count: Int) {
     private var currentCount = count
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
 
+    /**
+     * Causes the current thread to wait until the latch has counted down to zero, unless
+     * the thread is interrupted.
+     */
     fun await() {
         lock.withLock {
             while (currentCount > 0) {
@@ -17,23 +28,33 @@ class CountDownLatch(private val count: Int) {
         }
     }
 
-    fun await(timeout: Long, unit: TimeUnit) {
+    /**
+     * Causes the current thread to wait until the latch has counted down to zero, unless
+     * the thread is interrupted, or the specified waiting time elapses.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit the time unit of the timeout argument
+     * @return `true` if the count reached zero and `false` if the waiting time elapsed
+     * before the count reached zero
+     * @throws IllegalArgumentException if the timeout value is not positive
+     */
+    fun await(timeout: Long, unit: TimeUnit): Boolean {
         lock.withLock {
-            require(timeout > 0){" timeout has to be higher than 0"}
-            println("Started await")
+            require(timeout > 0) { "Timeout has to be higher than 0" }
             var remainingTime = unit.toNanos(timeout)
             while (currentCount > 0) {
                 remainingTime = condition.awaitNanos(remainingTime)
-                println("Thread woke up")
-                if(remainingTime <= 0){
-                    return
+                if (remainingTime <= 0) {
+                    return false
                 }
             }
+            return true
         }
     }
 
-
-
+    /**
+     * Decrements the count of the latch, releasing all waiting threads if the count reaches zero.
+     */
     fun countDown() {
         lock.withLock {
             if (currentCount > 0) {
@@ -42,13 +63,17 @@ class CountDownLatch(private val count: Int) {
                     condition.signalAll()
                 }
             }
-        }}
+        }
+    }
 
-
+    /**
+     * Returns the current count of the latch.
+     *
+     * @return the current count
+     */
     fun getCount(): Int {
         return lock.withLock {
-             currentCount
+            currentCount
         }
     }
 }
-
