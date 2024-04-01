@@ -1,5 +1,6 @@
 package pt.isel.pc.problemsets.set1
 
+import org.slf4j.LoggerFactory
 import pt.isel.pc.problemsets.utils.NodeLinkedList
 import java.time.Duration
 import java.util.*
@@ -10,14 +11,30 @@ import kotlin.concurrent.withLock
 
 /**
  * A thread pool executor that manages a pool of worker threads for executing submitted tasks.
- * Uses monitor-style
+ *
  * @property maxThreadPoolSize The maximum number of threads allowed in the thread pool.
  * @property keepAliveTime The maximum time that excess idle threads will wait for new tasks before terminating.
+ */
+
+/**
+ * MONITOR STYLE USED
  */
 class ThreadPoolExecutor(
     private val maxThreadPoolSize: Int,
     private val keepAliveTime: Duration,
 ) {
+    private val logger=LoggerFactory.getLogger(ThreadPoolExecutor::class.java)
+    private val lock = ReentrantLock()
+    private val condition = lock.newCondition()
+    private var nOfThreads = AtomicInteger(0)
+    private var shuttedDown = false
+
+
+    /**
+     * Added time to each link so that we can save the time of input for each node
+     */
+    private val workItems = NodeLinkedList<Runnable>()
+
     /**
      * Initializes the thread pool executor.
      *
@@ -27,17 +44,6 @@ class ThreadPoolExecutor(
         require(maxThreadPoolSize > 0) { "maxThreadPoolSize must be positive" }
     }
 
-    private val lock = ReentrantLock()
-    private val condition = lock.newCondition()
-    private var nOfThreads = AtomicInteger(0)
-    private var shutDown = false
-
-
-    /**
-     * Added time to each link so that we can save the time of input for each node
-     */
-    private val workItems = NodeLinkedList<Runnable>()
-
     /**
      * Executes the given task.
      *
@@ -46,16 +52,17 @@ class ThreadPoolExecutor(
      */
     @Throws(RejectedExecutionException::class)
     fun execute(runnable: Runnable): Unit {
-        if (shutDown) throw RejectedExecutionException()
+        if (shuttedDown) throw RejectedExecutionException()
         lock.lock()
         if (nOfThreads.get() < maxThreadPoolSize) {
+            logger.debug("Created new Thread")
             nOfThreads.incrementAndGet()
             lock.unlock()
             Thread {
                 try {
                     var x: Runnable? = runnable
                     while (x != null) {
-                        if (shutDown) throw RejectedExecutionException()
+                        if (shuttedDown) throw RejectedExecutionException()
                         x.run()
                         x = processPendingTasks()
                     }
@@ -67,6 +74,7 @@ class ThreadPoolExecutor(
                 }
             }.start()
         } else {
+            logger.debug("Added runnable to queue")
             workItems.enqueue(runnable)
             lock.unlock()
         }
@@ -76,7 +84,8 @@ class ThreadPoolExecutor(
      * Initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.
      */
     fun shutdown(): Unit {
-        shutDown = true
+        logger.debug("shutted down")
+        shuttedDown = true
     }
 
     /**
@@ -98,6 +107,7 @@ class ThreadPoolExecutor(
                     throw e
                 }
                 if (nOfThreads.get() == 0){
+                    logger.debug("Ended")
                     return true
                 }
                 if (remainingTime <= 0) return false
@@ -116,6 +126,7 @@ class ThreadPoolExecutor(
                 val pendingTask = workItems.pull()
                 val elapsedTime = System.nanoTime() - pendingTask.time
                 if (elapsedTime <= keepAliveTime.toNanos()) {
+                    logger.debug("Dequeued a valid runnable")
                     return pendingTask.value
                 }
             }

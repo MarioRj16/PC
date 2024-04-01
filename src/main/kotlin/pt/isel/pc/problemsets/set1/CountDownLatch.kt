@@ -1,5 +1,6 @@
 package pt.isel.pc.problemsets.set1
 
+import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -12,6 +13,8 @@ import kotlin.concurrent.withLock
  * through `await`
  */
 class CountDownLatch(private val count: Int) {
+
+    private val logger=LoggerFactory.getLogger(CountDownLatch::class.java)
     init {
         require(count > 0){
             "count must be higher than 0"
@@ -28,6 +31,7 @@ class CountDownLatch(private val count: Int) {
     fun await() {
         lock.withLock {
             while (currentCount > 0) {
+                logger.debug("Thread wants to wait")
                 condition.await()
             }
         }
@@ -49,6 +53,7 @@ class CountDownLatch(private val count: Int) {
             require(timeout > 0) { "Timeout has to be higher than 0" }
             var remainingTime = unit.toNanos(timeout)
             while (currentCount > 0) {
+                logger.debug("Thread wants to wait")
                 remainingTime = condition.awaitNanos(remainingTime)
                 if (remainingTime <= 0) {
                     return false
@@ -64,8 +69,10 @@ class CountDownLatch(private val count: Int) {
     fun countDown() {
         lock.withLock {
             if (currentCount > 0) {
+                logger.debug("Thread counted down")
                 currentCount--
                 if (currentCount == 0) {
+                    logger.debug("Finished")
                     condition.signalAll()
                 }
             }
