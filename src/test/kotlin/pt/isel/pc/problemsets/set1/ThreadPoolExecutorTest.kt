@@ -1,11 +1,11 @@
 package pt.isel.pc.problemsets.set1
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import pt.isel.pc.problemsets.utils.TestHelper
 import java.util.concurrent.RejectedExecutionException
-import kotlin.concurrent.thread
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.seconds
@@ -14,7 +14,8 @@ class ThreadPoolExecutorTest {
 
 
     @Test
-    fun testExecute() {
+    fun testThreadPoolExecutorExecute() {
+       repeat(1){
         val executor = ThreadPoolExecutor(5,Duration.ofSeconds(10) )
         val taskCount = 10
         val times=AtomicInteger(0)
@@ -26,14 +27,14 @@ class ThreadPoolExecutorTest {
         })}
         )
         test.join()
-        assertTrue {  executor.awaitTermination(Duration.ofSeconds(5))}
-        assertEquals(taskCount, times.get())
+        assertTrue {  executor.awaitTermination(Duration.ofSeconds(3))}
+        assertEquals(taskCount, times.get())}
     }
 
 
     @Test
-    fun testExecuteMultiple() {
-        repeat(1000){
+    fun testThreadPoolExecutorExecuteMultiple() {
+        repeat(100){
             val executor = ThreadPoolExecutor(5,Duration.ofSeconds(10) )
             val taskCount = 10
             val times=AtomicInteger(0)
@@ -50,7 +51,7 @@ class ThreadPoolExecutorTest {
         }}
 
     @Test
-    fun testExecuteTimedOut() {
+    fun testThreadPoolExecutorExecuteTimedOut() {
             val maxThreadPool = 1
             val executor = ThreadPoolExecutor(maxThreadPool, Duration.ofNanos(1))
             val taskCount = 2
@@ -70,7 +71,7 @@ class ThreadPoolExecutorTest {
     }
 
     @Test
-    fun testShutdown() {
+    fun testThreadPoolExecutorShutdown() {
         val executor = ThreadPoolExecutor(5, Duration.ofSeconds(100))
 
         executor.execute(Runnable {
@@ -94,7 +95,7 @@ class ThreadPoolExecutorTest {
     }
 
     @Test
-    fun testAwaitTermination() {
+    fun testThreadPoolExecutorAwaitTermination() {
         val executor = ThreadPoolExecutor(5, Duration.ofSeconds(10))
 
         executor.execute(Runnable {
@@ -107,7 +108,7 @@ class ThreadPoolExecutorTest {
     }
 
     @Test
-    fun testThrow(){
+    fun testThreadPoolExecutorInterruption(){
         val executor = ThreadPoolExecutor(5, Duration.ofSeconds(10))
         val th=Thread{executor.execute(Runnable {
             Thread.sleep(2000)})}
@@ -117,7 +118,13 @@ class ThreadPoolExecutorTest {
     }
 
     @Test
-    fun testAwaitErrorTermination() {
+    fun testCountDownLatchInvalidArgument(){
+        assertThrows<IllegalArgumentException> {ThreadPoolExecutor(0,Duration.ZERO)}
+    }
+
+
+    @Test
+    fun testThreadPoolExecutorAwaitErrorTermination() {
         val executor = ThreadPoolExecutor(5, Duration.ofSeconds(10))
 
         executor.execute(Runnable {

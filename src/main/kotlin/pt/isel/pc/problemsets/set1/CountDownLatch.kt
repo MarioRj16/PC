@@ -16,6 +16,9 @@ import kotlin.concurrent.withLock
  * USED KERNEL STYLE
  */
 class CountDownLatch(private val count: Int) {
+    init {
+        require(count>0){"count must be higher than 0"}
+    }
     private var currentCount = count
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
@@ -42,6 +45,7 @@ class CountDownLatch(private val count: Int) {
      * before the count reached zero
      * @throws IllegalArgumentException if the timeout value is not positive
      */
+    @Throws(InterruptedException::class)
     fun await(timeout: Long, unit: TimeUnit): Boolean {
         lock.withLock {
             require(timeout > 0) { "Timeout has to be higher than 0" }

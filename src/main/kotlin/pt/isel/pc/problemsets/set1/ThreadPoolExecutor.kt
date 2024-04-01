@@ -4,6 +4,7 @@ import pt.isel.pc.problemsets.utils.NodeLinkedList
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -23,9 +24,14 @@ class ThreadPoolExecutor(
 ) {
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
-    private var nOfThreads = 0
-    private val workItems = NodeLinkedList<Runnable>()
+    private var nOfThreads = AtomicInteger(0)
     private var shuttedDown = false
+
+
+    /**
+     * Added time to each link so that we can save the time of input for each node
+     */
+    private val workItems = NodeLinkedList<Runnable>()
 
     /**
      * Initializes the thread pool executor.
@@ -46,8 +52,8 @@ class ThreadPoolExecutor(
     fun execute(runnable: Runnable): Unit {
         if (shuttedDown) throw RejectedExecutionException()
         lock.lock()
-        if (nOfThreads < maxThreadPoolSize) {
-            nOfThreads++
+        if (nOfThreads.get() < maxThreadPoolSize) {
+            nOfThreads.incrementAndGet()
             lock.unlock()
             Thread {
                 try {
@@ -59,8 +65,8 @@ class ThreadPoolExecutor(
                     }
                 } finally {
                     lock.withLock {
-                        nOfThreads--
-                        if (nOfThreads == 0) condition.signalAll()
+                        nOfThreads.decrementAndGet()
+                        if (nOfThreads.get() == 0) condition.signalAll()
                     }
                 }
             }.start()
@@ -95,7 +101,9 @@ class ThreadPoolExecutor(
                 } catch (e: InterruptedException) {
                     throw e
                 }
-                if (nOfThreads == 0) return true
+                if (nOfThreads.get() == 0){
+                    return true
+                }
                 if (remainingTime <= 0) return false
             }
         }

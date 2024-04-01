@@ -41,6 +41,25 @@ class CountDownLatchTest {
         assertEquals(0, latch.getCount(), "Latch count should be zero")
     }
 
+    @Test
+    fun testCountDownLatchInvalidArgument(){
+        assertThrows<IllegalArgumentException> {CountDownLatch(0)}
+    }
+
+    @Test
+    fun testCountDownLatchThrow(){
+        val latch = CountDownLatch(5)
+        val th=Thread{
+            Thread.sleep(1000)
+            //println("thread $ix done")
+            latch.countDown()
+        }
+        th.start()
+        th.interrupt()
+        assertTrue {th.isInterrupted}
+
+    }
+
 
     @Test
     fun testCountDownLatchTimedOut() {
