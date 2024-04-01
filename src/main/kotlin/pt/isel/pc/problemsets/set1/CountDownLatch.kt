@@ -11,6 +11,10 @@ import kotlin.concurrent.withLock
  * @param count the number of times `countDown` must be invoked before threads can pass
  * through `await`
  */
+
+/**
+ * USED KERNEL STYLE
+ */
 class CountDownLatch(private val count: Int) {
     private var currentCount = count
     private val lock = ReentrantLock()
