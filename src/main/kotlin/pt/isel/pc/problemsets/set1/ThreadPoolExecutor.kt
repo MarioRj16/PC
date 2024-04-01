@@ -10,29 +10,14 @@ import kotlin.concurrent.withLock
 
 /**
  * A thread pool executor that manages a pool of worker threads for executing submitted tasks.
- *
+ * Uses monitor-style
  * @property maxThreadPoolSize The maximum number of threads allowed in the thread pool.
  * @property keepAliveTime The maximum time that excess idle threads will wait for new tasks before terminating.
- */
-
-/**
- * MONITOR STYLE USED
  */
 class ThreadPoolExecutor(
     private val maxThreadPoolSize: Int,
     private val keepAliveTime: Duration,
 ) {
-    private val lock = ReentrantLock()
-    private val condition = lock.newCondition()
-    private var nOfThreads = AtomicInteger(0)
-    private var shuttedDown = false
-
-
-    /**
-     * Added time to each link so that we can save the time of input for each node
-     */
-    private val workItems = NodeLinkedList<Runnable>()
-
     /**
      * Initializes the thread pool executor.
      *
@@ -42,6 +27,17 @@ class ThreadPoolExecutor(
         require(maxThreadPoolSize > 0) { "maxThreadPoolSize must be positive" }
     }
 
+    private val lock = ReentrantLock()
+    private val condition = lock.newCondition()
+    private var nOfThreads = AtomicInteger(0)
+    private var shutDown = false
+
+
+    /**
+     * Added time to each link so that we can save the time of input for each node
+     */
+    private val workItems = NodeLinkedList<Runnable>()
+
     /**
      * Executes the given task.
      *
@@ -50,7 +46,7 @@ class ThreadPoolExecutor(
      */
     @Throws(RejectedExecutionException::class)
     fun execute(runnable: Runnable): Unit {
-        if (shuttedDown) throw RejectedExecutionException()
+        if (shutDown) throw RejectedExecutionException()
         lock.lock()
         if (nOfThreads.get() < maxThreadPoolSize) {
             nOfThreads.incrementAndGet()
@@ -59,7 +55,7 @@ class ThreadPoolExecutor(
                 try {
                     var x: Runnable? = runnable
                     while (x != null) {
-                        if (shuttedDown) throw RejectedExecutionException()
+                        if (shutDown) throw RejectedExecutionException()
                         x.run()
                         x = processPendingTasks()
                     }
@@ -80,7 +76,7 @@ class ThreadPoolExecutor(
      * Initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.
      */
     fun shutdown(): Unit {
-        shuttedDown = true
+        shutDown = true
     }
 
     /**

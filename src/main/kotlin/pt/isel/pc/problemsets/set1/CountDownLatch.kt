@@ -7,17 +7,15 @@ import kotlin.concurrent.withLock
 /**
  * A synchronization aid that allows one or more threads to wait until a set of operations
  * being performed in other threads completes.
- *
+ * Uses kernel-style
  * @param count the number of times `countDown` must be invoked before threads can pass
  * through `await`
  */
-
-/**
- * USED KERNEL STYLE
- */
 class CountDownLatch(private val count: Int) {
     init {
-        require(count>0){"count must be higher than 0"}
+        require(count > 0){
+            "count must be higher than 0"
+        }
     }
     private var currentCount = count
     private val lock = ReentrantLock()
@@ -41,7 +39,7 @@ class CountDownLatch(private val count: Int) {
      *
      * @param timeout the maximum time to wait
      * @param unit the time unit of the timeout argument
-     * @return `true` if the count reached zero and `false` if the waiting time elapsed
+     * @return True if the count reached zero and false if the waiting time elapsed
      * before the count reached zero
      * @throws IllegalArgumentException if the timeout value is not positive
      */
