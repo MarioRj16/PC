@@ -1,32 +1,83 @@
 package pt.isel.pc.problemsets.set1
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import java.time.Duration.*
 
+import kotlin.test.assertTrue
+
 
 class RaceTest {
-    @Test
-    fun <T> testRaceTimesOut(){
-        val suppliers =
-            listOf(
-                { Thread.sleep(400)},
-                { Thread.sleep(600)}
-            )
-        val timeout= ofMillis(200)
-        assertNull(race(suppliers,timeout),"testRaceTimesOut Successful")
+
+    fun test():Long{
+        Thread.sleep(1000)
+        return 1L
+    }
+    fun test1():Long{
+        val timeToSleep = System.currentTimeMillis() % 10 + 1
+        Thread.sleep(1100 * timeToSleep)
+        return 2L
     }
 
     @Test
-    fun <T> testRaceDoesNotTimeOut(){
-        val suppliers: List<()->T> =
+    fun testRace(){
+        val suppliers:List<() -> Long> =
             listOf(
-                { Thread.sleep(400); 1 as T},
-                { Thread.sleep(600);2 as T}
+                ::test,
+                ::test1
             )
-        val timeout= ofSeconds(2)
-       assertNotNull(race(suppliers,timeout),"testRaceDoesNotTimeOut Successful")
+        val timeout= ofMillis(20000)
+        val result= race(suppliers,timeout)
+        assertTrue(result== test())
     }
+
+
+    @Test
+    fun testMultipleRace(){
+        val suppliers:List<() -> Long> =
+            listOf(
+                ::test1,
+                ::test,
+                ::test1,
+                ::test1,
+                ::test1,
+                ::test1,
+            )
+        val timeout= ofMillis(20000)
+        val result= race(suppliers,timeout)
+        assertTrue(result== test())
+    }
+
+    @Test
+    fun testRaceTimesOut(){
+        val suppliers:List<() -> Long> =
+            listOf(
+                ::test,
+                ::test1
+            )
+        val timeout= ofMillis(100)
+        assertTrue(race(suppliers,timeout)==null)
+    }
+
+    @Test
+    fun testRaceThrow(){
+        val suppliers:List<() -> Long> =
+            listOf(
+                ::test,
+                ::test1
+            )
+        val timeout= ofMillis(10000)
+        val th = Thread{
+            race(suppliers,timeout)==null
+        }
+        th.start()
+        assertThrows<InterruptedException> { th.interrupt()}
+    }
+
+
+
+
 }

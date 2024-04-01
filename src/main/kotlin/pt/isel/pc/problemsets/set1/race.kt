@@ -1,21 +1,63 @@
 package pt.isel.pc.problemsets.set1
 import java.time.Duration
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
 
 @Throws(InterruptedException::class)
 fun <T> race(suppliers: List<()->T>, timeout: Duration): T?{
-    var x:T? = null
-    suppliers.forEach {
-        Thread {
-            val result= it();
-            Thread.currentThread().threadGroup.interrupt()
-            x = result
-        }.start()
-    }
-    val z= Thread.getAllStackTraces()
-    for(t in Thread.getAllStackTraces().keys){
-        if(t!= Thread.currentThread()){
-            t.join(timeout.toNanos())
+    val lock=ReentrantLock()
+    val condition=lock.newCondition()
+    val ans = AtomicReference<T?>(null)
+    val threads = mutableListOf<Thread>()
+    suppliers.forEachIndexed {key, value ->
+        threads += Thread {
+            try{
+                println("Thread $key started running")
+                val result = value();
+                println("Thread $key finished with value $result")
+                //println("Thread $key found answer to be $ans")
+                lock.withLock {
+                    if (ans.get() == null) {
+                        ans.set(result)
+                        println("SETTED")
+                        condition.signalAll()
+                    }
+                }
+            } catch (e: InterruptedException){
+                println("Thread $key caught interruption")
+            }
+
+
         }
     }
-    return x
+
+    threads.forEach{ it.start() }
+    var timeoutInNanos = timeout.toNanos()
+    while (true){
+        try{
+            lock.withLock {
+                timeoutInNanos = condition.awaitNanos(timeoutInNanos)
+            }
+        } catch (e: InterruptedException){
+            threads.forEach{
+                it.interrupt()
+            }
+            return null
+        }
+        println("Main thread woke up")
+
+        if(timeoutInNanos <= 0){
+            println("Main thread time out")
+            threads.forEach{
+                it.interrupt()
+            }
+            return null
+        }
+
+        if(ans.get() != null)
+            return ans.get()
+    }
 }

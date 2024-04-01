@@ -1,7 +1,7 @@
 package pt.isel.pc.problemsets.set1
 
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
-import java.util.concurrent.locks.Condition
 import kotlin.concurrent.withLock
 
 class CountDownLatch(private val count: Int) {
@@ -16,6 +16,23 @@ class CountDownLatch(private val count: Int) {
             }
         }
     }
+
+    fun await(timeout: Long, unit: TimeUnit) {
+        lock.withLock {
+            require(timeout > 0){" timeout has to be higher than 0"}
+            println("Started await")
+            var remainingTime = unit.toNanos(timeout)
+            while (currentCount > 0) {
+                remainingTime = condition.awaitNanos(remainingTime)
+                println("Thread woke up")
+                if(remainingTime <= 0){
+                    return
+                }
+            }
+        }
+    }
+
+
 
     fun countDown() {
         lock.withLock {
