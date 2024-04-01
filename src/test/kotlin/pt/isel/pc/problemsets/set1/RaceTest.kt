@@ -71,10 +71,13 @@ class RaceTest {
             )
         val timeout= ofMillis(10000)
         val th = Thread{
-            race(suppliers,timeout)==null
+            race(suppliers,timeout)
         }
         th.start()
-        assertThrows<InterruptedException> { th.interrupt()}
+
+        th.interrupt()
+        assertTrue(th.isInterrupted)
+        
     }
 
 

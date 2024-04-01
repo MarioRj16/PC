@@ -42,10 +42,13 @@ fun <T> race(suppliers: List<()->T>, timeout: Duration): T?{
                 timeoutInNanos = condition.awaitNanos(timeoutInNanos)
             }
         } catch (e: InterruptedException){
+            println("passei aqui")
             threads.forEach{
                 it.interrupt()
+                it.join()
             }
-            return null
+            println("Main thread is about to throw")
+            throw e
         }
         println("Main thread woke up")
 
