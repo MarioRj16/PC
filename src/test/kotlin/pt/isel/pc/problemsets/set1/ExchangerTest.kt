@@ -1,8 +1,12 @@
 package pt.isel.pc.problemsets.set1
 
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import java.util.UUID
+import kotlin.concurrent.thread
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ExchangerTest {
 
@@ -30,12 +34,12 @@ class ExchangerTest {
 
 
     }
+
     @Test
     fun testMultipleThreadsExchange() {
         val exchanger = Exchanger<String>()
 
         val resultsMap = mutableMapOf<String, String>()
-        // Create and start threads
         val numberOfThreads = 100
         val threads = List(numberOfThreads) {
             val msg = UUID.randomUUID().toString()
@@ -46,13 +50,41 @@ class ExchangerTest {
 
         threads.forEach { it.start() }
 
-        // Wait for all threads to finish
         threads.forEach { it.join() }
 
-        // Ensure all data values were received
         assertEquals(numberOfThreads, resultsMap.size)
         val expected = resultsMap.entries.map { entry -> setOf(entry.key, entry.value) }.toSet().size
         assertEquals(numberOfThreads / 2, expected)
+    }
+
+    @Test
+    fun testExchangeTimeout(){
+        val exchanger = Exchanger<Int>()
+        val timeout = Duration.ofMillis(100)
+        val data = 1
+        var result: Int? = null
+
+        val th = thread {
+            result = exchanger.exchange(data, timeout)
+        }
+
+        th.join(timeout.toMillis())
+        assertNull(result)
+    }
+
+    @Test
+    fun testExchangeInterruption(){
+        val exchanger = Exchanger<Int>()
+        val timeout = Duration.ofMillis(100)
+        val data = 1
+
+        val th = thread {
+            exchanger.exchange(data, timeout)
+        }
+
+        th.interrupt()
+
+        assertTrue(th.isInterrupted)
     }
 }
 
