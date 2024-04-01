@@ -1,10 +1,6 @@
 package pt.isel.pc.problemsets.set1
 
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import java.time.Duration.*
 
 import kotlin.test.assertTrue
@@ -12,11 +8,11 @@ import kotlin.test.assertTrue
 
 class RaceTest {
 
-    fun test():Long{
+    private fun test():Long{
         Thread.sleep(1000)
         return 1L
     }
-    fun test1():Long{
+    private fun test1():Long{
         val timeToSleep = System.currentTimeMillis() % 10 + 1
         Thread.sleep(1100 * timeToSleep)
         return 2L
