@@ -1,5 +1,6 @@
 package pt.isel.pc.problemsets.set1
 
+import org.slf4j.LoggerFactory
 import pt.isel.pc.problemsets.utils.NodeLinkedList
 import java.time.Duration
 import java.util.*
@@ -22,6 +23,7 @@ class ThreadPoolExecutor(
     private val maxThreadPoolSize: Int,
     private val keepAliveTime: Duration,
 ) {
+    private val logger=LoggerFactory.getLogger(ThreadPoolExecutor::class.java)
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
     private var nOfThreads = AtomicInteger(0)
@@ -53,6 +55,7 @@ class ThreadPoolExecutor(
         if (shuttedDown) throw RejectedExecutionException()
         lock.lock()
         if (nOfThreads.get() < maxThreadPoolSize) {
+            logger.debug("Created new Thread")
             nOfThreads.incrementAndGet()
             lock.unlock()
             Thread {
@@ -71,6 +74,7 @@ class ThreadPoolExecutor(
                 }
             }.start()
         } else {
+            logger.debug("Added runnable to queue")
             workItems.enqueue(runnable)
             lock.unlock()
         }
@@ -80,6 +84,7 @@ class ThreadPoolExecutor(
      * Initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.
      */
     fun shutdown(): Unit {
+        logger.debug("shutted down")
         shuttedDown = true
     }
 
@@ -102,6 +107,7 @@ class ThreadPoolExecutor(
                     throw e
                 }
                 if (nOfThreads.get() == 0){
+                    logger.debug("Ended")
                     return true
                 }
                 if (remainingTime <= 0) return false
@@ -120,6 +126,7 @@ class ThreadPoolExecutor(
                 val pendingTask = workItems.pull()
                 val elapsedTime = System.nanoTime() - pendingTask.time
                 if (elapsedTime <= keepAliveTime.toNanos()) {
+                    logger.debug("Dequeued a valid runnable")
                     return pendingTask.value
                 }
             }
