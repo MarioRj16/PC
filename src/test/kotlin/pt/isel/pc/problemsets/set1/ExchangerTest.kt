@@ -3,6 +3,7 @@ package pt.isel.pc.problemsets.set1
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -39,8 +40,8 @@ class ExchangerTest {
     fun testMultipleThreadsExchange() {
         val exchanger = Exchanger<String>()
 
-        val resultsMap = mutableMapOf<String, String>()
-        val numberOfThreads = 100
+        val resultsMap = ConcurrentHashMap<String, String>()
+        val numberOfThreads = 100_000
         val threads = List(numberOfThreads) {
             val msg = UUID.randomUUID().toString()
             Thread {
