@@ -12,26 +12,25 @@ import kotlin.concurrent.withLock
 /**
  * A thread pool executor that manages a pool of worker threads for executing submitted tasks.
  *
+ *
  * @property maxThreadPoolSize The maximum number of threads allowed in the thread pool.
  * @property keepAliveTime The maximum time that excess idle threads will wait for new tasks before terminating.
- */
-
-/**
+ *
  * MONITOR STYLE USED
  */
 class ThreadPoolExecutor(
     private val maxThreadPoolSize: Int,
     private val keepAliveTime: Duration,
 ) {
-    private val logger=LoggerFactory.getLogger(ThreadPoolExecutor::class.java)
+    private val logger = LoggerFactory.getLogger(ThreadPoolExecutor::class.java)
     private val lock = ReentrantLock()
     private val condition = lock.newCondition()
     private var nOfThreads = AtomicInteger(0)
     private var shuttedDown = false
 
-
     /**
-     * Added time to each link so that we can save the time of input for each node
+     * A linked list to store pending tasks.
+     * Each node contains a `Runnable` task and a timestamp indicating its arrival time.
      */
     private val workItems = NodeLinkedList<Runnable>()
 
@@ -42,6 +41,7 @@ class ThreadPoolExecutor(
      */
     init {
         require(maxThreadPoolSize > 0) { "maxThreadPoolSize must be positive" }
+        require(keepAliveTime > Duration.ZERO) { "Duration must be higher than 0" }
     }
 
     /**
@@ -52,30 +52,34 @@ class ThreadPoolExecutor(
      */
     @Throws(RejectedExecutionException::class)
     fun execute(runnable: Runnable): Unit {
-        if (shuttedDown) throw RejectedExecutionException()
+        if (shuttedDown) {
+            logger.warn("Rejected task: Executor is shut down")
+            throw RejectedExecutionException()
+        }
         lock.lock()
         if (nOfThreads.get() < maxThreadPoolSize) {
-            logger.debug("Created new Thread")
             nOfThreads.incrementAndGet()
             lock.unlock()
+            logger.debug("Created new Thread")
             Thread {
                 try {
                     var x: Runnable? = runnable
                     while (x != null) {
-                        if (shuttedDown) throw RejectedExecutionException()
+                        if (shuttedDown) {
+                            logger.warn("Rejected task: Executor is shut down")
+                            throw RejectedExecutionException()
+                        }
                         x.run()
                         x = processPendingTasks()
                     }
                 } finally {
-                    lock.withLock {
-                        nOfThreads.decrementAndGet()
-                        if (nOfThreads.get() == 0) condition.signalAll()
-                    }
+                    endThread()
                 }
             }.start()
         } else {
             logger.debug("Added runnable to queue")
             workItems.enqueue(runnable)
+            condition.signalAll()
             lock.unlock()
         }
     }
@@ -84,7 +88,7 @@ class ThreadPoolExecutor(
      * Initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.
      */
     fun shutdown(): Unit {
-        logger.debug("shutted down")
+        logger.debug("Shutting down executor")
         shuttedDown = true
     }
 
@@ -107,10 +111,13 @@ class ThreadPoolExecutor(
                     throw e
                 }
                 if (nOfThreads.get() == 0){
-                    logger.debug("Ended")
+                    logger.debug("Executor terminated")
                     return true
                 }
-                if (remainingTime <= 0) return false
+                if (remainingTime <= 0) {
+                    logger.debug("Timeout elapsed before termination")
+                    return false
+                }
             }
         }
     }
@@ -122,15 +129,31 @@ class ThreadPoolExecutor(
      */
     private fun processPendingTasks(): Runnable? {
         lock.withLock {
-            while (workItems.notEmpty) {
-                val pendingTask = workItems.pull()
-                val elapsedTime = System.nanoTime() - pendingTask.time
-                if (elapsedTime <= keepAliveTime.toNanos()) {
-                    logger.debug("Dequeued a valid runnable")
-                    return pendingTask.value
+            var remainingTime = keepAliveTime.toNanos()
+            while (true) {
+                if (workItems.notEmpty) {
+                    logger.debug("Retrieving task from queue")
+                    return workItems.pull().value
                 }
+                if (remainingTime <= 0) {
+                    logger.debug("Keep-alive time expired")
+                    return null
+                }
+                remainingTime = condition.awaitNanos(remainingTime)
             }
-            return null
+        }
+    }
+
+    /**
+     * Decrements the thread count upon thread termination and signals waiting threads if necessary.
+     */
+    private fun endThread() {
+        lock.withLock {
+            nOfThreads.decrementAndGet()
+            if (nOfThreads.get() == 0) {
+                logger.debug("All threads terminated, signaling waiting threads")
+                condition.signalAll()
+            }
         }
     }
 }

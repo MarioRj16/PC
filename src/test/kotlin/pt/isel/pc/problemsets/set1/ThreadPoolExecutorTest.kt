@@ -12,99 +12,104 @@ import kotlin.time.Duration.Companion.seconds
 
 class ThreadPoolExecutorTest {
 
-
     @Test
     fun testThreadPoolExecutorExecute() {
-       repeat(1){
-        val executor = ThreadPoolExecutor(5,Duration.ofSeconds(10) )
+        val executor = ThreadPoolExecutor(5,Duration.ofSeconds(1) )
         val taskCount = 10
         val times=AtomicInteger(0)
         val test=TestHelper(10.seconds)
         test.createAndStartMultiple(taskCount,{idx, isDone ->
             executor.execute(Runnable {
                 times.incrementAndGet()
-
         })}
         )
         test.join()
-        assertTrue {  executor.awaitTermination(Duration.ofSeconds(3))}
-        assertEquals(taskCount, times.get())}
+        assertTrue {  executor.awaitTermination(Duration.ofSeconds(5))}
+        assertEquals(taskCount, times.get())
     }
 
 
     @Test
     fun testThreadPoolExecutorExecuteMultiple() {
-        repeat(100){
-            val executor = ThreadPoolExecutor(5,Duration.ofSeconds(10) )
+        repeat(10000){
+            val executor = ThreadPoolExecutor(5,Duration.ofNanos(1) )
             val taskCount = 10
             val times=AtomicInteger(0)
             val test=TestHelper(10.seconds)
             test.createAndStartMultiple(taskCount,{idx, isDone ->
                 executor.execute(Runnable {
                     times.incrementAndGet()
-
-                })}
-            )
+                })})
             test.join()
-            assertTrue {  executor.awaitTermination(Duration.ofSeconds(5))}
+            assertTrue {  executor.awaitTermination(Duration.ofSeconds(10))}
             assertEquals(taskCount, times.get())
         }}
 
     @Test
-    fun testThreadPoolExecutorExecuteTimedOut() {
-            val maxThreadPool = 1
-            val executor = ThreadPoolExecutor(maxThreadPool, Duration.ofNanos(1))
-            val taskCount = 2
-            val executedTasks = mutableListOf<Int>()
-            val test = TestHelper(10.seconds)
-            test.createAndStartMultiple(taskCount, { idx, isDone ->
+    fun testThreadPoolExecutorExecuteMAX() {
+            val executor = ThreadPoolExecutor(1,Duration.ofSeconds(1) )
+            val taskCount = 4
+            val times=AtomicInteger(0)
+            val test=TestHelper(100.seconds)
+            test.createAndStartMultiple(taskCount,{idx, isDone ->
                 executor.execute(Runnable {
-                    executedTasks.add(idx)
-                    Thread.sleep(100)
-
-                })
-            }
-            )
+                    times.incrementAndGet()
+                })})
             test.join()
-            assertTrue { executor.awaitTermination(Duration.ofSeconds(4)) }
-            assertEquals(maxThreadPool,executedTasks.size )
+            assertTrue {  executor.awaitTermination(Duration.ofSeconds(6))}
+            assertEquals(taskCount, times.get())
+        }
+
+    @Test
+    fun testThreadPoolExecutorExecuteTimedOut() {
+        val maxThreadPool = 1
+        val executor = ThreadPoolExecutor(maxThreadPool, Duration.ofNanos(1))
+        val executedTasks = mutableListOf<Int>()
+        val test = TestHelper(10.seconds)
+        test.createAndStartMultiple(1, { idx, isDone ->
+             executor.execute(Runnable {
+                 executedTasks.add(idx)
+                })
+            })
+        test.join()
+        assertTrue { executor.awaitTermination(Duration.ofSeconds(1))}
+        assertEquals(maxThreadPool,executedTasks.size )
+
+        test.createAndStartMultiple(1, { idx, isDone ->
+            executor.execute(Runnable {
+                executedTasks.add(2)
+            })
+        })
+        test.join()
+        assertTrue { executor.awaitTermination(Duration.ofSeconds(4)) }
+            assertEquals(maxThreadPool+1,executedTasks.size )
     }
 
     @Test
     fun testThreadPoolExecutorShutdown() {
         val executor = ThreadPoolExecutor(5, Duration.ofSeconds(100))
-
         executor.execute(Runnable {
-            Thread.sleep(2000) // Simulate a long-running task
+            Thread.sleep(2000)
         })
-
         executor.shutdown()
-
-        // Attempt to submit another task after shutdown
         try {
             executor.execute(Runnable {
                 println("This should not be executed.")
             })
         } catch (e: RejectedExecutionException) {
-            // Expected exception
+
             return
         }
-
-        // If RejectedExecutionException is not thrown, fail the test
         assertTrue(false, "Should throw RejectedExecutionException after shutdown")
     }
 
     @Test
     fun testThreadPoolExecutorAwaitTermination() {
-        val executor = ThreadPoolExecutor(5, Duration.ofSeconds(10))
-
+        val executor = ThreadPoolExecutor(5, Duration.ofSeconds(1))
         executor.execute(Runnable {
-            Thread.sleep(2000) // Simulate a long-running task
+            Thread.sleep(2000)
         })
-
-        val result = executor.awaitTermination(Duration.ofSeconds(3))
-
-        assertTrue(result)
+        assertTrue(executor.awaitTermination(Duration.ofSeconds(4)))
     }
 
     @Test
@@ -126,13 +131,10 @@ class ThreadPoolExecutorTest {
     @Test
     fun testThreadPoolExecutorAwaitErrorTermination() {
         val executor = ThreadPoolExecutor(5, Duration.ofSeconds(10))
-
         executor.execute(Runnable {
-            Thread.sleep(2000) // Simulate a long-running task
+            Thread.sleep(2000)
         })
-
         val result = executor.awaitTermination(Duration.ofSeconds(1))
-
         assertFalse(result)
     }
 }
