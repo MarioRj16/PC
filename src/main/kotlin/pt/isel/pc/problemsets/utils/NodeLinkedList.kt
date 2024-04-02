@@ -4,21 +4,18 @@ class NodeLinkedList<T> : Iterable<T> {
 
     interface Node<T> {
         val value: T
-        val time:Long
         val isInserted: Boolean
     }
 
     private class NodeImpl<T>(val maybeValue: T?) : Node<T> {
 
-        constructor (maybeValue: T?, n: NodeImpl<T>, p: NodeImpl<T>,tim:Long=0) : this(maybeValue) {
-            time=tim
+        constructor (maybeValue: T?, n: NodeImpl<T>, p: NodeImpl<T>) : this(maybeValue) {
             next = n
             prev = p
         }
 
         var next: NodeImpl<T>? = null
         var prev: NodeImpl<T>? = null
-        override var time: Long = 0
 
         override val value: T
             get() {
@@ -42,7 +39,7 @@ class NodeLinkedList<T> : Iterable<T> {
 
     fun enqueue(value: T): Node<T> {
         val tail: NodeImpl<T> = head.prev!!
-        val node: NodeImpl<T> = NodeImpl(value, head, tail,System.nanoTime())
+        val node: NodeImpl<T> = NodeImpl(value, head, tail)
         head.prev = node
         tail.next = node
         count += 1
