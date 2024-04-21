@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class SafeSuccession<T>(
     private val items: Array<T>
 ) {
-    private var index = AtomicInteger(0)
+    private val index = AtomicInteger(0)
     fun next(): T? {
         while(true){
             val observedIdx = index.get()
