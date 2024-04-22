@@ -2,8 +2,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import pt.isel.pc.problemsets.set2.SafeSuccession
+import pt.isel.pc.problemsets.utils.TestHelper
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.thread
+import kotlin.time.Duration.Companion.seconds
 
 
 class SafeSuccessionTest {
@@ -31,7 +34,7 @@ class SafeSuccessionTest {
 
         val numThreads = 10
         val latch = CountDownLatch(numThreads)
-        val results = mutableSetOf<Int?>()
+        val results = mutableListOf<Int?>()
 
         // Create and start multiple threads
         repeat(numThreads) {
@@ -52,7 +55,26 @@ class SafeSuccessionTest {
         latch.await()
 
         // Ensure all items from the array are accessed exactly once
-        assertEquals(items.toSet(), results)
+        assertEquals(items.toList(), results)
         assertNull(succession.next()) // Ensure no more items after exhaustion
     }
+
+
+
+    @Test
+    fun next(){
+        val NOF_THREADS = 200
+        val array = arrayOf(0,1,2,3,4,5,6,7,8,9)
+        val retArray = ConcurrentLinkedQueue<Int>()
+        val sut = SafeSuccession(array)
+        val testHelper = TestHelper(3.seconds)
+
+        testHelper.createAndStartMultiple(NOF_THREADS){ _, _ ->
+            val item = sut.next()
+            if(item != null) retArray.add(item)
+        }
+        testHelper.join()
+        assertEquals(array.toList(), retArray.sorted())
+    }
 }
+

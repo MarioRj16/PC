@@ -8,7 +8,7 @@ class SafeResourceManager(private val obj: AutoCloseable, usages: Int) {
     fun release() {
         while(true){
             val observedUsages = currentUsages.get()
-            if (currentUsages.get() == 0) {
+            if (observedUsages == 0) {
                 throw IllegalStateException("usage count is already zero")
             }
             if (currentUsages.compareAndSet(observedUsages, observedUsages - 1)) {
