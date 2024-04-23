@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
 
 
@@ -12,18 +14,24 @@ class ScopedAnyTest {
 
     @Test
     fun testScopedAny() {
-        val futures = listOf(
-            CompletableFuture.completedFuture(1),
-            CompletableFuture.completedFuture(2),
-            CompletableFuture.completedFuture(3)
-        )
+        val results = ConcurrentLinkedQueue<Int>()
+        repeat(100){
+            val futures = listOf(
+                CompletableFuture.failedFuture(IllegalStateException()),
+                CompletableFuture.completedFuture(1),
+                CompletableFuture.completedFuture(2),
+                CompletableFuture.completedFuture(3)
+            )
 
-        val result = scopedAny(futures) { value ->
-            println("Completed with value: $value")
-            assertTrue{ value in 1..3}
+            val result = scopedAny(futures) { value ->
+                println("Completed with value: $value")
+                assertTrue{ value in 1..3}
+            }
+            println("result")
+            assertTrue{ result.join() in 1..3}
+            results.add(result.join())
         }
-        println("result")
-        assertTrue{ result.join() in 1..3}
+        println(results)
     }
 
     @Test
