@@ -2,6 +2,7 @@ package pt.isel.pc.problemsets.set2
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
@@ -29,6 +30,24 @@ class ScopedAnyTest {
             results.add(result.join())
         }
         println(results)
+    }
+    @Test
+    fun testScopedExcpetions() {
+        val futures = listOf<CompletableFuture<Any>>(
+            CompletableFuture.failedFuture(IllegalStateException()),
+            CompletableFuture.failedFuture(IllegalArgumentException()),
+            CompletableFuture.failedFuture(NumberFormatException()),
+            CompletableFuture.failedFuture(NullPointerException())
+        )
+        try{
+            val result = scopedAny(futures) { value ->
+            println("Completed with value: $value")
+            }
+            result.join()
+        }catch(e:Exception){
+            return assertEquals( e.cause?.suppressed?.size,4)
+        }
+        assertEquals(0,1) // Error didnt go to Exception
     }
 
     @Test
