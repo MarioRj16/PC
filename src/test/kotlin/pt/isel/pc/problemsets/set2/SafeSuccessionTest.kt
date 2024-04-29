@@ -16,27 +16,22 @@ class SafeSuccessionTest {
         val items = arrayOf(1, 2, 3, 4, 5)
         val succession = SafeSuccession(items)
 
-        // Test sequential access
         assertEquals(1, succession.next())
         assertEquals(2, succession.next())
         assertEquals(3, succession.next())
         assertEquals(4, succession.next())
         assertEquals(5, succession.next())
-        assertNull(succession.next()) // Beyond the end of array
+        assertNull(succession.next())
     }
 
     @Test
     fun testNextConcurrent() {
-
-        // Create an array of integers for testing
         val items = arrayOf(1, 2, 3, 4, 5)
         val succession = SafeSuccession(items)
 
         val numThreads = 10
         val latch = CountDownLatch(numThreads)
-        val results = mutableListOf<Int?>()
-
-        // Create and start multiple threads
+        val results = ConcurrentLinkedQueue<Int>()
         repeat(numThreads) {
             thread {
                 while (true) {
@@ -47,16 +42,12 @@ class SafeSuccessionTest {
                         break
                     }
                 }
-                latch.countDown() // Signal that this thread has finished
+                latch.countDown()
             }
         }
-
-        // Wait for all threads to finish
         latch.await()
-
-        // Ensure all items from the array are accessed exactly once
-        assertEquals(items.toList(), results)
-        assertNull(succession.next()) // Ensure no more items after exhaustion
+        assertEquals(items.toList(), results.toList())
+        assertNull(succession.next())
     }
 
 

@@ -33,6 +33,6 @@ fun <T> scopedAny(futures: List<CompletableFuture<T>>, onSuccess: (T)->Unit): Co
             }
         }
     }
-    isFinished.join()
+    isFinished.get()
     return result.get() ?: throw IllegalStateException("No future completed")
 }

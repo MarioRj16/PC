@@ -14,10 +14,7 @@ class SafeResourceManagerTest {
         val outputStream = ByteArrayOutputStream()
         val resourceManager = SafeResourceManager(OutputStreamWriter(outputStream), 1)
 
-        // Release the resource
         resourceManager.release()
-
-        // Verify that the resource was closed
         assertTrue(outputStream.isClosed)
     }
 
@@ -26,13 +23,11 @@ class SafeResourceManagerTest {
         val outputStream = ByteArrayOutputStream()
         val resourceManager = SafeResourceManager(OutputStreamWriter(outputStream), 3)
 
-        // Release the resource three times
 
         resourceManager.release()
         resourceManager.release()
         resourceManager.release()
 
-        // Verify that the resource was closed after the last release
         assertTrue(outputStream.isClosed)
     }
 
@@ -41,8 +36,6 @@ class SafeResourceManagerTest {
         val outputStream = ByteArrayOutputStream()
         val resourceManager = SafeResourceManager(OutputStreamWriter(outputStream), 3)
 
-        // Release the resource three times
-
         resourceManager.release()
         resourceManager.release()
         resourceManager.release()
@@ -50,7 +43,6 @@ class SafeResourceManagerTest {
         assertThrows(IllegalStateException::class.java) {
             resourceManager.release()
         }
-        // Verify that the resource was closed after the last release
         assertTrue(outputStream.isClosed)
     }
 
@@ -73,7 +65,6 @@ class SafeResourceManagerTest {
         val threads = mutableListOf<Thread>()
         val throwCounter = AtomicInteger(0)
 
-        // Create and start multiple threads to release the resource concurrently
         repeat(numThreads) {
             threads.add(thread {
                 try {
@@ -84,10 +75,8 @@ class SafeResourceManagerTest {
             })
         }
 
-        // Wait for all threads to complete
         threads.forEach { it.join() }
         assertTrue(throwCounter.get() == 5)
-        // Verify that the resource was closed after all releases
         assertTrue(outputStream.isClosed)
     }
 
