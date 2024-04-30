@@ -12,6 +12,23 @@ class ScopedAnyTest {
 
     @Test
     fun testScopedAny() {
+        val futures = listOf(
+            CompletableFuture.failedFuture(IllegalStateException()),
+            CompletableFuture.completedFuture(1),
+            CompletableFuture.completedFuture(2),
+            CompletableFuture.completedFuture(3)
+        )
+
+        val result = scopedAny(futures) { value ->
+            println("Completed with value: $value")
+            assertTrue{ value in 1..3}
+        }
+        println("result")
+        assertTrue{ result.join() in 1..3}
+    }
+
+    @Test
+    fun testScopedAnyMultiple() {
         val results = ConcurrentLinkedQueue<Int>()
         repeat(100){
             val futures = listOf(
@@ -20,7 +37,6 @@ class ScopedAnyTest {
                 CompletableFuture.completedFuture(2),
                 CompletableFuture.completedFuture(3)
             )
-
             val result = scopedAny(futures) { value ->
                 println("Completed with value: $value")
                 assertTrue{ value in 1..3}
@@ -32,7 +48,7 @@ class ScopedAnyTest {
         println(results)
     }
     @Test
-    fun testScopedExcpetions() {
+    fun testScopedExceptions() {
         val futures = listOf<CompletableFuture<Any>>(
             CompletableFuture.failedFuture(IllegalStateException()),
             CompletableFuture.failedFuture(IllegalArgumentException()),
@@ -47,7 +63,7 @@ class ScopedAnyTest {
         }catch(e:Exception){
             return assertEquals( e.cause?.suppressed?.size,4)
         }
-        assertEquals(0,1) // Error didnt go to Exception
+        assertEquals(0,1)
     }
 
     @Test
