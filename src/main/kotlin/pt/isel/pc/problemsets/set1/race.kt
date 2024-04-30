@@ -59,12 +59,17 @@ fun <T> race(suppliers: List<()->T>, timeout: Duration): T?{
         if(timeoutInNanos <= 0){
             threads.forEach{
                 it.interrupt()
+                it.join()
             }
             return null
         }
         // If a result is found, return it
         val result = ans.get()
         if(result != null)
+            threads.forEach {
+                it.interrupt()
+                it.join()
+            }
             return result
     }
 }
