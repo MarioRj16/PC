@@ -6,11 +6,10 @@ import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
 import java.util.concurrent.CompletableFuture
 
-
-
 //aceitação de ligações,
 //escrita e leitura de bytes
 // sem bloquear as threads invocantes
+
 
 fun AsynchronousSocketChannel.connect2(address: SocketAddress): CompletableFuture<Void> {
     val completableFuture = CompletableFuture<Void>()
