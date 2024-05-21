@@ -6,29 +6,27 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import pt.isel.pc.problemsets.utils.NodeLinkedList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 
 class MessageQueue<T> {
 
-
     private data class Request<T>(
-        var value : T?,
+        var value: T?,
         val continuation: CancellableContinuation<T>,
-        var isDone: Boolean
+        var isDone: Boolean = false
     )
 
-    private val messages = NodeLinkedList<Request<T>>()
-
+    private val messages = NodeLinkedList<T>()
+    private val requests = NodeLinkedList<Request<T>>()
     private val lock = ReentrantLock()
 
-
-    fun enqueue(item:T){
-        val continuation:CancellableContinuation<T>? = lock.withLock {
-            if(messages.empty){
+    fun enqueue(item: T) {
+        val continuation: CancellableContinuation<T>? = lock.withLock {
+            if (requests.empty) {
+                messages.enqueue(item)
                 return
             }
-            val requestNode = messages.pull()
+            val requestNode = requests.pull()
             requestNode.value.value = item
             requestNode.value.isDone = true
             requestNode.value.continuation
@@ -36,32 +34,33 @@ class MessageQueue<T> {
         continuation?.resume(item)
     }
 
-    suspend fun dequeue():T{
+    suspend fun dequeue(): T {
         var isFastPath = false
-        var requestNode: NodeLinkedList.Node<Request<T>>? = null
-        var value : MessageQueue. Request<T>?= null
-        try{
-            return suspendCancellableCoroutine<T> { continuation ->
+        var message: T? = null
+
+        return try {
+            suspendCancellableCoroutine { continuation ->
                 lock.withLock {
-                    if(messages.headValue != null) {
+                    if (!messages.empty) {
                         isFastPath = true
-                        value = messages.pull().value
-                        continuation.resume(value!!.value!!)
-                    }else{
-                        requestNode = messages.enqueue(Request(null,continuation,false))
+                        message = messages.pull().value
+                        continuation.resume(message!!)
+                    } else {
+                        val requestNode = requests.enqueue(Request(null, continuation))
+                        continuation.invokeOnCancellation {
+                            lock.withLock {
+                                if (!requestNode.value.isDone) {
+                                    requests.remove(requestNode)
+                                }
+                            }
+                        }
                     }
                 }
             }
-        } catch (e : CancellationException){
+        } catch (e: CancellationException) {
             if (isFastPath) {
-                return value!!.value!!
-            }
-            val observedNode = requestNode ?: throw e
-            lock.withLock {
-                if (observedNode.value.isDone) {
-                    return value!!.value!!
-                }
-                messages.remove(observedNode)
+                return message!!
+            } else {
                 throw e
             }
         }

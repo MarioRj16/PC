@@ -1,78 +1,73 @@
-package pt.isel.pc.problemsets.set3
-
-import java.net.SocketAddress
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.nio.ByteBuffer
+import java.nio.channels.AsynchronousServerSocketChannel
 import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
-import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
-//aceitação de ligações,
-//escrita e leitura de bytes
-// sem bloquear as threads invocantes
-
-
-fun AsynchronousSocketChannel.connect2(address: SocketAddress): CompletableFuture<Void> {
-    val completableFuture = CompletableFuture<Void>()
-    try {
-        this.connect(
-            address,
-            Unit,
-            object : CompletionHandler<Void, Unit> {
-                override fun completed(result: Void?, attachment: Unit) {
-                    completableFuture.complete(result)
-                }
-
-                override fun failed(exc: Throwable, attachment: Unit) {
-                    completableFuture.completeExceptionally(exc)
-                }
+suspend fun AsynchronousServerSocketChannel.suspendAccept(): AsynchronousSocketChannel {
+    return suspendCancellableCoroutine { cont ->
+        this.accept(null, object : CompletionHandler<AsynchronousSocketChannel, Void?> {
+            override fun completed(result: AsynchronousSocketChannel, attachment: Void?) {
+                cont.resume(result)
             }
-        )
-    } catch (ex: Throwable) {
-        completableFuture.completeExceptionally(ex)
+
+            override fun failed(exc: Throwable, attachment: Void?) {
+                cont.resumeWithException(exc)
+            }
+        })
+
+        cont.invokeOnCancellation {
+            try {
+                this.close()
+            } catch (e: Throwable) {
+                // Ignore exception on close
+            }
+        }
     }
-    return completableFuture
 }
 
-fun AsynchronousSocketChannel.read2(dst: ByteBuffer): CompletableFuture<Int> {
-    val completableFuture = CompletableFuture<Int>()
-    try {
-        this.read(
-            dst,
-            Unit,
-            object : CompletionHandler<Int, Unit> {
-                override fun completed(result: Int, attachment: Unit) {
-                    completableFuture.complete(result)
-                }
-
-                override fun failed(exc: Throwable, attachment: Unit) {
-                    completableFuture.completeExceptionally(exc)
-                }
+suspend fun AsynchronousSocketChannel.suspendRead(buffer: ByteBuffer): Int {
+    return suspendCancellableCoroutine { cont ->
+        this.read(buffer, null, object : CompletionHandler<Int, Void?> {
+            override fun completed(result: Int, attachment: Void?) {
+                cont.resume(result)
             }
-        )
-    } catch (ex: Throwable) {
-        completableFuture.completeExceptionally(ex)
+
+            override fun failed(exc: Throwable, attachment: Void?) {
+                cont.resumeWithException(exc)
+            }
+        })
+
+        cont.invokeOnCancellation {
+            try {
+                this.close()
+            } catch (e: Throwable) {
+                // Ignore exception on close
+            }
+        }
     }
-    return completableFuture
 }
 
-fun AsynchronousSocketChannel.write2(src: ByteBuffer): CompletableFuture<Int> {
-    val completableFuture = CompletableFuture<Int>()
-    try {
-        this.write(
-            src,
-            Unit,
-            object : CompletionHandler<Int, Unit> {
-                override fun completed(result: Int, attachment: Unit) {
-                    completableFuture.complete(result)
-                }
-
-                override fun failed(exc: Throwable, attachment: Unit) {
-                    completableFuture.completeExceptionally(exc)
-                }
+suspend fun AsynchronousSocketChannel.suspendWrite(buffer: ByteBuffer): Int {
+    return suspendCancellableCoroutine { cont ->
+        this.write(buffer, null, object : CompletionHandler<Int, Void?> {
+            override fun completed(result: Int, attachment: Void?) {
+                cont.resume(result)
             }
-        )
-    } catch (ex: Throwable) {
-        completableFuture.completeExceptionally(ex)
+
+            override fun failed(exc: Throwable, attachment: Void?) {
+                cont.resumeWithException(exc)
+            }
+        })
+
+        cont.invokeOnCancellation {
+            try {
+                this.close()
+            } catch (e: Throwable) {
+                // Ignore exception on close
+            }
+        }
     }
-    return completableFuture
 }

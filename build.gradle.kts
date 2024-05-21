@@ -1,10 +1,10 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.6.10"
+    kotlin("jvm") version "1.9.21"
 }
 
-group = "pt.isel.pc"
+group = "pt.isel.pc.g14"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -14,13 +14,11 @@ repositories {
 val ktlint: Configuration by configurations.creating
 
 dependencies {
-
     implementation("org.slf4j:slf4j-api:1.7.36")
     implementation("org.slf4j:slf4j-simple:2.0.0-alpha7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
 
-    testImplementation(kotlin("test"))
-
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
     ktlint("com.pinterest:ktlint:0.48.2") {
         attributes {
             attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.EXTERNAL))
@@ -30,13 +28,17 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // To access the *non-public* Continuation API
+    // ONLY for learning purposes
+    jvmArgs(listOf(
+        "--add-exports", "java.base/jdk.internal.vm=ALL-UNNAMED"
+    ))
+}
+kotlin {
+    jvmToolchain(21)
 }
 
-tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "17"
-}
-
-val outputDir = "${project.buildDir}/reports/ktlint/"
+val outputDir = "${layout.buildDirectory}/reports/ktlint/"
 val inputFiles = project.fileTree(mapOf("dir" to "src", "include" to "**/*.kt"))
 val ktlintCheck by tasks.creating(JavaExec::class) {
     inputs.files(inputFiles)
@@ -50,4 +52,11 @@ val ktlintCheck by tasks.creating(JavaExec::class) {
 
 tasks.named("check") {
     dependsOn("ktlintCheck")
+}
+
+// Use the following to run:
+// java -cp "build/libs/*:build/classes/kotlin/main" <package>.<class-name>Kt
+tasks.register<Copy>("packLibs") {
+    from(configurations.runtimeClasspath)
+    into("build/libs")
 }
