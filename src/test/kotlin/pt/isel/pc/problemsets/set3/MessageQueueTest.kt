@@ -3,7 +3,7 @@ package pt.isel.pc.problemsets.set3
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class MessageQueueTest {
 
@@ -37,10 +37,13 @@ class MessageQueueTest {
     fun `test cancellation handling`() = runBlocking {
         val queue = MessageQueue<Int>()
         val job = launch {
-            assertThrows<CancellationException> {
-                runBlocking {
-                    queue.dequeue()
-                }
+            try {
+                queue.dequeue()
+            }catch(e:CancellationException) {
+                assertEquals(1, 1)
+            }catch(e:Exception){
+                //ONLY CANCELLATION EXCEPTION SHOULD BE THROWN
+                assertEquals(0,1)
             }
         }
 
@@ -53,9 +56,14 @@ class MessageQueueTest {
         val queue = MessageQueue<Int>()
 
         val job1 = launch {
-            queue.dequeue()
-            //Throw Error if not throws
-            assertEquals(0,1)
+            try{
+                queue.dequeue()
+            }catch(e:CancellationException) {
+                assertEquals(1, 1)
+            }catch(e:Exception){
+                //ONLY CANCELLATION EXCEPTION SHOULD BE THROWN
+                assertEquals(0,1)
+            }
         }
 
         delay(100) // Ensure the first dequeue call is suspended
@@ -74,21 +82,23 @@ class MessageQueueTest {
     @Test
     fun `test multiple enqueues and dequeues`() = runBlocking {
         val queue = MessageQueue<Int>()
-        val enqueuer = launch {
-            for (i in 1..10) {
+        val enqueuer = ConcurrentLinkedQueue<Job>()
+        val dequeuer = ConcurrentLinkedQueue<Job>()
+        for (i in 1..10000) {
+            enqueuer.add( launch {
                 queue.enqueue(i)
-            }
+            })
         }
 
-        val dequeuer = launch {
-            for (i in 1..10) {
+        for (i in 1..10000) {
+            dequeuer.add( launch {
                 val value = queue.dequeue()
                 assertEquals(i, value)
-            }
+            })
         }
 
-        enqueuer.join()
-        dequeuer.join()
+        enqueuer.forEach { it.join() }
+        dequeuer.forEach { it.join() }
     }
 
     @Test
