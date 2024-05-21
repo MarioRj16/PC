@@ -19,11 +19,7 @@ suspend fun AsynchronousServerSocketChannel.suspendAccept(): AsynchronousSocketC
         })
 
         cont.invokeOnCancellation {
-            try {
-                this.close()
-            } catch (e: Throwable) {
-                // Ignore exception on close
-            }
+            this.close()
         }
     }
 }
@@ -41,11 +37,7 @@ suspend fun AsynchronousSocketChannel.suspendRead(buffer: ByteBuffer): Int {
         })
 
         cont.invokeOnCancellation {
-            try {
-                this.close()
-            } catch (e: Throwable) {
-                // Ignore exception on close
-            }
+            this.close()
         }
     }
 }
@@ -63,11 +55,7 @@ suspend fun AsynchronousSocketChannel.suspendWrite(buffer: ByteBuffer): Int {
         })
 
         cont.invokeOnCancellation {
-            try {
-                this.close()
-            } catch (e: Throwable) {
-                // Ignore exception on close
-            }
+            this.close()
         }
     }
 }
