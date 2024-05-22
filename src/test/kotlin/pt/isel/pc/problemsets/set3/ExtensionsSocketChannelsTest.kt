@@ -3,7 +3,6 @@ package pt.isel.pc.problemsets.set3
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import suspendAccept
 import suspendRead
 import suspendWrite
@@ -11,7 +10,7 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousServerSocketChannel
 import java.nio.channels.AsynchronousSocketChannel
-import java.nio.channels.ClosedChannelException
+
 
 class AsyncSocketChannelExtensionsTest {
 

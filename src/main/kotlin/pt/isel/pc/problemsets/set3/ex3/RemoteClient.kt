@@ -1,5 +1,6 @@
 package pt.isel.pc.problemsets.set3.ex3
 
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import pt.isel.pc.problemsets.set3.ex3.protocol.ClientRequest
 import pt.isel.pc.problemsets.set3.ex3.protocol.ClientResponse
@@ -12,7 +13,6 @@ import java.io.BufferedWriter
 import java.io.Writer
 import java.net.Socket
 import java.util.concurrent.LinkedBlockingQueue
-import kotlin.concurrent.thread
 
 /**
  * The component responsible to interact with a remote client, via a [Socket].
@@ -23,17 +23,15 @@ class RemoteClient private constructor(
     private val clientSocket: Socket,
 ) : Subscriber {
     private val controlQueue = LinkedBlockingQueue<ControlMessage>()
-    private val controlThread: Thread
-    private val readThread: Thread
     private var state = State.RUNNING
 
+    private val scope = CoroutineScope(Dispatchers.IO)
+
     init {
-        controlThread = thread(isDaemon = true) {
-            logger.info("[{}] Remote client started main thread", clientId)
+        scope.launch {
             controlLoop()
         }
-        readThread = thread(isDaemon = true) {
-            logger.info("[{}] Remote client started read thread", clientId)
+        scope.launch {
             readLoop()
         }
     }
@@ -46,7 +44,7 @@ class RemoteClient private constructor(
         controlQueue.put(ControlMessage.Message(message))
     }
 
-    private fun handleShutdown(writer: Writer) {
+    private suspend fun handleShutdown(writer: Writer) {
         if (state != State.RUNNING) {
             return
         }
@@ -55,14 +53,14 @@ class RemoteClient private constructor(
         state = State.SHUTTING_DOWN
     }
 
-    private fun handleMessage(writer: BufferedWriter, message: PublishedMessage) {
+    private suspend fun handleMessage(writer: BufferedWriter, message: PublishedMessage) {
         if (state != State.RUNNING) {
             return
         }
         writer.sendLine(serialize(ServerPush.PublishedMessage(message)))
     }
 
-    private fun handleClientSocketLine(writer: BufferedWriter, line: String) {
+    private suspend fun handleClientSocketLine(writer: BufferedWriter, line: String) {
         if (state != State.RUNNING) {
             return
         }
@@ -95,36 +93,34 @@ class RemoteClient private constructor(
         writer.sendLine(serialize(response))
     }
 
-    private fun handleClientSocketError(throwable: Throwable) {
+    private suspend fun handleClientSocketError(throwable: Throwable) {
         logger.info("Client socket operation thrown: {}", throwable.message)
     }
 
-    private fun handleClientSocketEnded() {
+    private suspend fun handleClientSocketEnded() {
         if (state != State.RUNNING) {
             return
         }
         state = State.SHUTTING_DOWN
     }
 
-    private fun handleReadLoopEnded() {
+    private suspend fun handleReadLoopEnded() {
         state = State.SHUTDOWN
     }
 
-    private fun controlLoop() {
+    private suspend fun controlLoop() {
         try {
             clientSocket.getOutputStream().bufferedWriter().use { writer ->
                 writer.sendLine(serialize(ServerPush.Hi))
                 while (state != State.SHUTDOWN) {
-                    val controlMessage = controlQueue.take()
+                    val controlMessage = withContext(Dispatchers.IO) { controlQueue.take() }
                     logger.info("[{}] main thread received {}", clientId, controlMessage)
                     when (controlMessage) {
                         ControlMessage.Shutdown -> handleShutdown(writer)
                         is ControlMessage.Message -> handleMessage(writer, controlMessage.value)
                         is ControlMessage.ClientSocketLine -> handleClientSocketLine(writer, controlMessage.value)
                         ControlMessage.ClientSocketEnded -> handleClientSocketEnded()
-
                         is ControlMessage.ClientSocketError -> handleClientSocketError(controlMessage.throwable)
-
                         ControlMessage.ReadLoopEnded -> handleReadLoopEnded()
                     }
                 }
@@ -135,11 +131,11 @@ class RemoteClient private constructor(
         }
     }
 
-    private fun readLoop() {
+    private suspend fun readLoop() {
         clientSocket.getInputStream().bufferedReader().use { reader ->
             try {
                 while (true) {
-                    val line: String? = reader.readLine()
+                    val line: String? = withContext(Dispatchers.IO) { reader.readLine() }
                     if (line == null) {
                         logger.info("[{}] end of input stream reached", clientId)
                         controlQueue.put(ControlMessage.ClientSocketEnded)
@@ -171,11 +167,11 @@ class RemoteClient private constructor(
 
     private sealed interface ControlMessage {
         data class Message(val value: PublishedMessage) : ControlMessage
-        data object Shutdown : ControlMessage
-        data object ClientSocketEnded : ControlMessage
+        object Shutdown : ControlMessage
+        object ClientSocketEnded : ControlMessage
         data class ClientSocketError(val throwable: Throwable) : ControlMessage
         data class ClientSocketLine(val value: String) : ControlMessage
-        data object ReadLoopEnded : ControlMessage
+        object ReadLoopEnded : ControlMessage
     }
 
     private enum class State {

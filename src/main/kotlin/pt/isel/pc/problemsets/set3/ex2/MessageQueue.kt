@@ -1,4 +1,4 @@
-package pt.isel.pc.problemsets.set3
+package pt.isel.pc.problemsets.set3.ex2
 
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CancellationException

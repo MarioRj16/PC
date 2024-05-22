@@ -1,11 +1,11 @@
 package pt.isel.pc.problemsets.set3.ex3
 
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketAddress
 import java.util.concurrent.LinkedBlockingQueue
-import kotlin.concurrent.thread
 
 /**
  * The server component.
@@ -15,20 +15,19 @@ class Server private constructor(
     private val controlQueue: LinkedBlockingQueue<ControlMessage>,
 ) {
 
-    private val controlThread: Thread
-    private val acceptThread: Thread
     private val clientSet = mutableSetOf<RemoteClient>()
     private val topicSet = TopicSet()
-
     private var currentClientId = 0
     private var state = State.RUNNING
     private var acceptThreadEnded = false
 
+    private val scope = CoroutineScope(Dispatchers.IO)
+
     init {
-        controlThread = thread(isDaemon = true) {
+        scope.launch {
             controlLoop()
         }
-        acceptThread = thread(isDaemon = true) {
+        scope.launch {
             acceptLoop()
         }
     }
@@ -53,11 +52,11 @@ class Server private constructor(
         controlQueue.put(ControlMessage.RemoteClientEnded(client))
     }
 
-    fun join() {
-        controlThread.join()
+    suspend fun join() {
+        scope.coroutineContext[Job]?.join()
     }
 
-    private fun handleNewClientSocket(clientSocket: Socket) {
+    private suspend fun handleNewClientSocket(clientSocket: Socket) {
         if (state != State.RUNNING) {
             clientSocket.close()
             return
@@ -68,7 +67,7 @@ class Server private constructor(
         logger.info("Server: started new remote client")
     }
 
-    private fun handleRemoteClientEnded(remoteClient: RemoteClient) {
+    private suspend fun handleRemoteClientEnded(remoteClient: RemoteClient) {
         clientSet.remove(remoteClient)
         topicSet.unsubscribe(remoteClient)
         logger.info("Server: remote client ended {}", remoteClient.clientId)
@@ -79,28 +78,28 @@ class Server private constructor(
         }
     }
 
-    private fun handlePublish(message: PublishedMessage) {
+    private suspend fun handlePublish(message: PublishedMessage) {
         topicSet.getSubscribersFor(message.topicName).forEach {
             it.send(message)
         }
     }
 
-    private fun handleSubscribe(topicName: TopicName, subscriber: Subscriber) {
+    private suspend fun handleSubscribe(topicName: TopicName, subscriber: Subscriber) {
         topicSet.subscribe(topicName, subscriber)
     }
 
-    private fun handleUnsubscribe(topicName: TopicName, subscriber: Subscriber) {
+    private suspend fun handleUnsubscribe(topicName: TopicName, subscriber: Subscriber) {
         topicSet.unsubscribe(topicName, subscriber)
     }
 
-    private fun handleShutdown() {
+    private suspend fun handleShutdown() {
         if (state != State.RUNNING) {
             return
         }
         startShutdown()
     }
 
-    private fun startShutdown() {
+    private suspend fun startShutdown() {
         serverSocket.close()
         clientSet.forEach {
             it.shutdown()
@@ -108,7 +107,7 @@ class Server private constructor(
         state = State.SHUTTING_DOWN
     }
 
-    private fun handleAcceptLoopEnded() {
+    private suspend fun handleAcceptLoopEnded() {
         acceptThreadEnded = true
         if (state != State.SHUTTING_DOWN) {
             logger.info("Accept loop ended unexpectedly")
@@ -119,22 +118,16 @@ class Server private constructor(
         }
     }
 
-    private fun controlLoop() {
+    private suspend fun controlLoop() {
         try {
             while (state != State.SHUTDOWN) {
                 try {
-                    when (val controlMessage = controlQueue.take()) {
+                    when (val controlMessage = withContext(Dispatchers.IO) { controlQueue.take() }) {
                         is ControlMessage.NewClientSocket -> handleNewClientSocket(controlMessage.clientSocket)
                         is ControlMessage.RemoteClientEnded -> handleRemoteClientEnded(controlMessage.remoteClient)
                         is ControlMessage.Publish -> handlePublish(controlMessage.message)
-                        is ControlMessage.Subscribe -> handleSubscribe(
-                            controlMessage.topicName,
-                            controlMessage.subscriber,
-                        )
-                        is ControlMessage.Unsubscribe -> handleUnsubscribe(
-                            controlMessage.topicName,
-                            controlMessage.subscriber,
-                        )
+                        is ControlMessage.Subscribe -> handleSubscribe(controlMessage.topicName, controlMessage.subscriber)
+                        is ControlMessage.Unsubscribe -> handleUnsubscribe(controlMessage.topicName, controlMessage.subscriber)
                         ControlMessage.Shutdowm -> handleShutdown()
                         ControlMessage.AcceptLoopEnded -> handleAcceptLoopEnded()
                     }
@@ -147,11 +140,10 @@ class Server private constructor(
         }
     }
 
-    private fun acceptLoop() {
+    private suspend fun acceptLoop() {
         try {
             while (true) {
-                // TODO add limitation to the number of active sockets
-                val clientSocket = serverSocket.accept()
+                val clientSocket = withContext(Dispatchers.IO) { serverSocket.accept() }
                 logger.info("New client socket accepted")
                 controlQueue.put(ControlMessage.NewClientSocket(clientSocket))
             }
@@ -179,9 +171,8 @@ class Server private constructor(
         data class Publish(val message: PublishedMessage) : ControlMessage
         data class Subscribe(val topicName: TopicName, val subscriber: Subscriber) : ControlMessage
         data class Unsubscribe(val topicName: TopicName, val subscriber: Subscriber) : ControlMessage
-
-        data object Shutdowm : ControlMessage
-        data object AcceptLoopEnded : ControlMessage
+        object Shutdowm : ControlMessage
+        object AcceptLoopEnded : ControlMessage
     }
 
     private enum class State {

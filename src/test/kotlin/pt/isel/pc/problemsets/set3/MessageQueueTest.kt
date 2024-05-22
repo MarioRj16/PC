@@ -3,6 +3,7 @@ package pt.isel.pc.problemsets.set3
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import pt.isel.pc.problemsets.set3.ex2.MessageQueue
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class MessageQueueTest {
