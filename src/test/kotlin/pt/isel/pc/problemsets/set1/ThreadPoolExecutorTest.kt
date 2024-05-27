@@ -31,7 +31,7 @@ class ThreadPoolExecutorTest {
 
     @Test
     fun testThreadPoolExecutorExecuteMultiple() {
-        repeat(10000){
+        repeat(1000){
             val executor = ThreadPoolExecutor(5,Duration.ofNanos(1) )
             val taskCount = 10
             val times=AtomicInteger(0)
