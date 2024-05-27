@@ -68,7 +68,7 @@ class RemoteClient private constructor(
             is SuccessOrError.Success -> when (val request = res.value) {
                 is ClientRequest.Publish -> {
                     server.publish(PublishedMessage(request.topic, request.message))
-                    ClientResponse.OkPublish
+                    ClientResponse.OkPublish(server.getNumberOfSubscribers(request.topic))
                 }
 
                 is ClientRequest.Subscribe -> {

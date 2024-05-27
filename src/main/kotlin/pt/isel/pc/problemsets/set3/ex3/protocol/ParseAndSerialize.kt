@@ -80,7 +80,7 @@ fun serialize(error: ClientRequestError): String =
 fun serialize(response: ClientResponse): String =
     when (response) {
         is ClientResponse.Error -> "-${serialize(response.error)}"
-        is ClientResponse.OkPublish -> "+"
+        is ClientResponse.OkPublish -> "+${response.numberSubs}"
         ClientResponse.OkSubscribe -> "+"
         ClientResponse.OkUnsubscribe -> "+"
     }

@@ -52,6 +52,10 @@ class Server private constructor(
         controlQueue.put(ControlMessage.RemoteClientEnded(client))
     }
 
+    fun getNumberOfSubscribers(topic: TopicName): Int{
+        return topicSet.getSubscribersFor(topic).size
+    }
+
     suspend fun join() {
         scope.coroutineContext[Job]?.join()
     }
@@ -79,10 +83,13 @@ class Server private constructor(
     }
 
     private suspend fun handlePublish(message: PublishedMessage) {
-        topicSet.getSubscribersFor(message.topicName).forEach {
+        val subscribers = topicSet.getSubscribersFor(message.topicName)
+        subscribers.forEach {
             it.send(message)
         }
     }
+
+
 
     private suspend fun handleSubscribe(topicName: TopicName, subscriber: Subscriber) {
         topicSet.subscribe(topicName, subscriber)

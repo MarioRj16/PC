@@ -7,7 +7,7 @@ import java.net.InetSocketAddress
 
 fun main() {
     // start server
-    val server = Server.start(InetSocketAddress("0.0.0.0", 8080))
+    val server = Server.start(InetSocketAddress("0.0.0.0", 23))
     logger.info("Started server")
 
     // register shutdown hook
