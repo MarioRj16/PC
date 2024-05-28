@@ -2,16 +2,22 @@ package pt.isel.pc.problemsets.set3.ex3
 
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import pt.isel.pc.problemsets.set3.ex2.MessageQueue
 import pt.isel.pc.problemsets.set3.ex3.protocol.ClientRequest
 import pt.isel.pc.problemsets.set3.ex3.protocol.ClientResponse
 import pt.isel.pc.problemsets.set3.ex3.protocol.ServerPush
 import pt.isel.pc.problemsets.set3.ex3.protocol.parseClientRequest
 import pt.isel.pc.problemsets.set3.ex3.protocol.serialize
+import pt.isel.pc.problemsets.set3.ex3.utils.LineReader
 import pt.isel.pc.problemsets.set3.ex3.utils.SuccessOrError
 import pt.isel.pc.problemsets.set3.ex3.utils.sendLine
+import suspendRead
+import suspendWrite
 import java.io.BufferedWriter
 import java.io.Writer
 import java.net.Socket
+import java.nio.ByteBuffer
+import java.nio.channels.AsynchronousSocketChannel
 import java.util.concurrent.LinkedBlockingQueue
 
 /**
@@ -20,9 +26,9 @@ import java.util.concurrent.LinkedBlockingQueue
 class RemoteClient private constructor(
     private val server: Server,
     val clientId: String,
-    private val clientSocket: Socket,
+    private val clientSocket: AsynchronousSocketChannel,
 ) : Subscriber {
-    private val controlQueue = LinkedBlockingQueue<ControlMessage>()
+    private val controlQueue = MessageQueue<ControlMessage>()
     private var state = State.RUNNING
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -37,30 +43,33 @@ class RemoteClient private constructor(
     }
 
     fun shutdown() {
-        controlQueue.put(ControlMessage.Shutdown)
+        controlQueue.enqueue(ControlMessage.Shutdown)
     }
 
     override fun send(message: PublishedMessage) {
-        controlQueue.put(ControlMessage.Message(message))
+        controlQueue.enqueue(ControlMessage.Message(message))
     }
 
-    private suspend fun handleShutdown(writer: Writer) {
+    private suspend fun handleShutdown() {
         if (state != State.RUNNING) {
             return
         }
-        writer.sendLine(serialize(ServerPush.Bye))
+
+        //writer.sendLine(serialize(ServerPush.Bye))
+        clientSocket.suspendWrite(ByteBuffer.wrap(serialize(ServerPush.Bye).toByteArray()))
         clientSocket.close()
         state = State.SHUTTING_DOWN
     }
 
-    private suspend fun handleMessage(writer: BufferedWriter, message: PublishedMessage) {
+    private suspend fun handleMessage( message: PublishedMessage) {
         if (state != State.RUNNING) {
             return
         }
-        writer.sendLine(serialize(ServerPush.PublishedMessage(message)))
+       // writer.sendLine(serialize(ServerPush.PublishedMessage(message)))
+        clientSocket.suspendWrite(ByteBuffer.wrap(serialize(ServerPush.PublishedMessage(message)).toByteArray()))
     }
 
-    private suspend fun handleClientSocketLine(writer: BufferedWriter, line: String) {
+    private suspend fun handleClientSocketLine( line: String) {
         if (state != State.RUNNING) {
             return
         }
@@ -90,7 +99,8 @@ class RemoteClient private constructor(
                 ClientResponse.Error(res.error)
             }
         }
-        writer.sendLine(serialize(response))
+        clientSocket.suspendWrite(ByteBuffer.wrap(serialize(response).toByteArray()))
+        //writer.sendLine(serialize(response))
     }
 
     private suspend fun handleClientSocketError(throwable: Throwable) {
@@ -110,21 +120,25 @@ class RemoteClient private constructor(
 
     private suspend fun controlLoop() {
         try {
-            clientSocket.getOutputStream().bufferedWriter().use { writer ->
-                writer.sendLine(serialize(ServerPush.Hi))
-                while (state != State.SHUTDOWN) {
-                    val controlMessage = withContext(Dispatchers.IO) { controlQueue.take() }
-                    logger.info("[{}] main thread received {}", clientId, controlMessage)
-                    when (controlMessage) {
-                        ControlMessage.Shutdown -> handleShutdown(writer)
-                        is ControlMessage.Message -> handleMessage(writer, controlMessage.value)
-                        is ControlMessage.ClientSocketLine -> handleClientSocketLine(writer, controlMessage.value)
-                        ControlMessage.ClientSocketEnded -> handleClientSocketEnded()
-                        is ControlMessage.ClientSocketError -> handleClientSocketError(controlMessage.throwable)
-                        ControlMessage.ReadLoopEnded -> handleReadLoopEnded()
+            //clientSocket.getOutputStream().bufferedWriter().use { writer ->
+                //writer.sendLine(serialize(ServerPush.Hi))
+            clientSocket.suspendWrite(ByteBuffer.wrap(serialize(ServerPush.Hi).toByteArray()))
+            while (state != State.SHUTDOWN) {
+                val controlMessage = controlQueue.dequeue()
+                //logger.info("[{}] main thread received {}", clientId, controlMessage)
+                when (controlMessage) {
+                    ControlMessage.Shutdown -> handleShutdown()
+                    is ControlMessage.Message -> handleMessage(controlMessage.value)
+                    is ControlMessage.ClientSocketLine -> handleClientSocketLine(controlMessage.value)
+                    ControlMessage.ClientSocketEnded -> handleClientSocketEnded()
+                    is ControlMessage.ClientSocketError -> handleClientSocketError(controlMessage.throwable)
+                    ControlMessage.ReadLoopEnded -> handleReadLoopEnded()
+                    else -> {
+                        logger.info("[{}] unexpected control message: {}", clientId, controlMessage)
                     }
                 }
             }
+
         } finally {
             logger.info("[{}] remote client ending", clientId)
             server.remoteClientEnded(this)
@@ -132,31 +146,30 @@ class RemoteClient private constructor(
     }
 
     private suspend fun readLoop() {
-        clientSocket.getInputStream().bufferedReader().use { reader ->
-            try {
-                while (true) {
-                    val line: String? = withContext(Dispatchers.IO) { reader.readLine() }
-                    if (line == null) {
-                        logger.info("[{}] end of input stream reached", clientId)
-                        controlQueue.put(ControlMessage.ClientSocketEnded)
-                        return
-                    }
-                    logger.info("[{}] line received: {}", clientId, line)
-                    controlQueue.put(ControlMessage.ClientSocketLine(line))
+        try {
+            val reader = LineReader{ clientSocket.suspendRead(it) }
+            while (true) {
+                val line = reader.readLine()
+                if (line == null) {
+                    logger.info("[{}] end of input stream reached", clientId)
+                    controlQueue.enqueue(ControlMessage.ClientSocketEnded)
+                    return
                 }
-            } catch (ex: Throwable) {
-                logger.info("[{}]Exception on read loop: {}, {}", clientId, ex.javaClass.name, ex.message)
-                controlQueue.put(ControlMessage.ClientSocketError(ex))
-            } finally {
-                logger.info("[{}] client loop ending", clientId)
-                controlQueue.put(ControlMessage.ReadLoopEnded)
+                logger.info("[{}] line received: {}", clientId, line)
+                controlQueue.enqueue(ControlMessage.ClientSocketLine(line))
             }
+        } catch (ex: Throwable) {
+            logger.info("[{}]Exception on read loop: {}, {}", clientId, ex.javaClass.name, ex.message)
+            controlQueue.enqueue(ControlMessage.ClientSocketError(ex))
+        } finally {
+            logger.info("[{}] client loop ending", clientId)
+            controlQueue.enqueue(ControlMessage.ReadLoopEnded)
         }
     }
 
     companion object {
         private val logger = LoggerFactory.getLogger(RemoteClient::class.java)
-        fun start(server: Server, clientId: String, socket: Socket): RemoteClient {
+        fun start(server: Server, clientId: String, socket: AsynchronousSocketChannel): RemoteClient {
             return RemoteClient(
                 server,
                 clientId,
