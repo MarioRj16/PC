@@ -72,22 +72,22 @@ fun parseClientRequest(line: String): SuccessOrError<ClientRequest, ClientReques
 
 fun serialize(error: ClientRequestError): String =
     when (error) {
-        is ClientRequestError.InvalidArguments -> "INVALID_ARGUMENTS\n"
-        ClientRequestError.MissingCommandName -> "MISSING_COMMAND_NAME\n"
-        ClientRequestError.UnknownCommandName -> "UNKNOWN_COMMAND_NAME\n"
+        is ClientRequestError.InvalidArguments -> "INVALID_ARGUMENTS"
+        ClientRequestError.MissingCommandName -> "MISSING_COMMAND_NAME"
+        ClientRequestError.UnknownCommandName -> "UNKNOWN_COMMAND_NAME"
     }
 
 fun serialize(response: ClientResponse): String =
     when (response) {
-        is ClientResponse.Error -> "-${serialize(response.error)}\n"
-        is ClientResponse.OkPublish -> "+${response.numberSubs}\n"
-        ClientResponse.OkSubscribe -> "+\n"
-        ClientResponse.OkUnsubscribe -> "+\n"
+        is ClientResponse.Error -> "-${serialize(response.error)}"
+        is ClientResponse.OkPublish -> "+${response.numberSubs}"
+        ClientResponse.OkSubscribe -> "+"
+        ClientResponse.OkUnsubscribe -> "+"
     }
 
 fun serialize(serverPush: ServerPush): String =
     when (serverPush) {
-        is ServerPush.PublishedMessage -> ">${serverPush.message.topicName.value} ${serverPush.message.content}\n"
-        is ServerPush.Hi -> "!hi\n"
-        is ServerPush.Bye -> "!bye\n"
+        is ServerPush.PublishedMessage -> ">${serverPush.message.topicName.value} ${serverPush.message.content}"
+        is ServerPush.Hi -> "!hi"
+        is ServerPush.Bye -> "!bye"
     }

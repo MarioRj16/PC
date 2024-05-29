@@ -10,15 +10,11 @@ import pt.isel.pc.problemsets.set3.ex3.protocol.parseClientRequest
 import pt.isel.pc.problemsets.set3.ex3.protocol.serialize
 import pt.isel.pc.problemsets.set3.ex3.utils.LineReader
 import pt.isel.pc.problemsets.set3.ex3.utils.SuccessOrError
-import pt.isel.pc.problemsets.set3.ex3.utils.sendLine
+import pt.isel.pc.problemsets.set3.ex3.utils.suspendWriteLn
 import suspendRead
-import suspendWrite
-import java.io.BufferedWriter
-import java.io.Writer
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousSocketChannel
-import java.util.concurrent.LinkedBlockingQueue
 
 /**
  * The component responsible to interact with a remote client, via a [Socket].
@@ -55,8 +51,7 @@ class RemoteClient private constructor(
             return
         }
 
-        //writer.sendLine(serialize(ServerPush.Bye))
-        clientSocket.suspendWrite(ByteBuffer.wrap(serialize(ServerPush.Bye).toByteArray()))
+        clientSocket.suspendWriteLn(ByteBuffer.wrap(serialize(ServerPush.Bye).toByteArray()))
         clientSocket.close()
         state = State.SHUTTING_DOWN
     }
@@ -65,8 +60,8 @@ class RemoteClient private constructor(
         if (state != State.RUNNING) {
             return
         }
-       // writer.sendLine(serialize(ServerPush.PublishedMessage(message)))
-        clientSocket.suspendWrite(ByteBuffer.wrap(serialize(ServerPush.PublishedMessage(message)).toByteArray()))
+
+        clientSocket.suspendWriteLn(ByteBuffer.wrap(serialize(ServerPush.PublishedMessage(message)).toByteArray()))
     }
 
     private suspend fun handleClientSocketLine( line: String) {
@@ -99,8 +94,7 @@ class RemoteClient private constructor(
                 ClientResponse.Error(res.error)
             }
         }
-        clientSocket.suspendWrite(ByteBuffer.wrap(serialize(response).toByteArray()))
-        //writer.sendLine(serialize(response))
+        clientSocket.suspendWriteLn(ByteBuffer.wrap(serialize(response).toByteArray()))
     }
 
     private suspend fun handleClientSocketError(throwable: Throwable) {
@@ -120,12 +114,10 @@ class RemoteClient private constructor(
 
     private suspend fun controlLoop() {
         try {
-            //clientSocket.getOutputStream().bufferedWriter().use { writer ->
-                //writer.sendLine(serialize(ServerPush.Hi))
-            clientSocket.suspendWrite(ByteBuffer.wrap(serialize(ServerPush.Hi).toByteArray()))
+            clientSocket.suspendWriteLn(ByteBuffer.wrap(serialize(ServerPush.Hi).toByteArray()))
             while (state != State.SHUTDOWN) {
                 val controlMessage = controlQueue.dequeue()
-                //logger.info("[{}] main thread received {}", clientId, controlMessage)
+                logger.info("[{}] main thread received {}", clientId, controlMessage)
                 when (controlMessage) {
                     ControlMessage.Shutdown -> handleShutdown()
                     is ControlMessage.Message -> handleMessage(controlMessage.value)
