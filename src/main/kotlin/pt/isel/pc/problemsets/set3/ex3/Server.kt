@@ -65,12 +65,7 @@ class Server private constructor(
     }
 
     private fun handleNewClientSocket(clientSocket: AsynchronousSocketChannel) {
-        if (state != State.RUNNING) {
-            clientSocket.close()
-            return
-        }
-        if (clientSet.size >= limitClients) {
-
+        if (state != State.RUNNING || clientSet.size >= limitClients) {
             clientSocket.close()
             return
         }
@@ -80,7 +75,7 @@ class Server private constructor(
         logger.info("Server: started new remote client")
     }
 
-    private suspend  fun handleRemoteClientEnded(remoteClient: RemoteClient) {
+    private fun handleRemoteClientEnded(remoteClient: RemoteClient) {
         clientSet.remove(remoteClient)
         topicSet.unsubscribe(remoteClient)
         logger.info("Server: remote client ended {}", remoteClient.clientId)
@@ -91,7 +86,7 @@ class Server private constructor(
         }
     }
 
-    private suspend fun handlePublish(message: PublishedMessage) {
+    private fun handlePublish(message: PublishedMessage) {
         val subscribers = topicSet.getSubscribersFor(message.topicName)
         subscribers.forEach {
             it.send(message)
@@ -100,11 +95,11 @@ class Server private constructor(
 
 
 
-    private suspend fun handleSubscribe(topicName: TopicName, subscriber: Subscriber) {
+    private fun handleSubscribe(topicName: TopicName, subscriber: Subscriber) {
         topicSet.subscribe(topicName, subscriber)
     }
 
-    private suspend fun handleUnsubscribe(topicName: TopicName, subscriber: Subscriber) {
+    private fun handleUnsubscribe(topicName: TopicName, subscriber: Subscriber) {
         topicSet.unsubscribe(topicName, subscriber)
     }
 
@@ -115,7 +110,7 @@ class Server private constructor(
         startShutdown()
     }
 
-    private suspend fun startShutdown() {
+    private fun startShutdown() {
         serverSocket.close()
         clientSet.forEach {
             it.shutdown()
@@ -123,7 +118,7 @@ class Server private constructor(
         state = State.SHUTTING_DOWN
     }
 
-    private suspend fun handleAcceptLoopEnded() {
+    private fun handleAcceptLoopEnded() {
         acceptCoroutineEnded = true
         if (state != State.SHUTTING_DOWN) {
             logger.info("Accept loop ended unexpectedly")
