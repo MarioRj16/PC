@@ -7,6 +7,7 @@ import java.net.InetSocketAddress
 
 fun main() {
     // start server
+
     val server = Server.start(InetSocketAddress("0.0.0.0", 23))
     logger.info("Started server")
 
@@ -20,11 +21,13 @@ fun main() {
     }
     Runtime.getRuntime().addShutdownHook(shutdownThread)
     runBlocking {
-        // wait for server to end
-        logger.info("Waiting for server to end")
-        server.join()
-        logger.info("main ending")
+            // wait for server to end
+            logger.info("Waiting for server to end")
+            server.join()
+            logger.info("main ending")
     }
 }
 
 private val logger = LoggerFactory.getLogger("App")
+
+
