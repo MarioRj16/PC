@@ -37,12 +37,10 @@ suspend fun AsynchronousSocketChannel.suspendRead(buffer: ByteBuffer): Int {
                 cont.resumeWithException(exc)
             }
         })
-/*
+
         cont.invokeOnCancellation {
             this.close()
         }
-
- */
     }
 }
 
