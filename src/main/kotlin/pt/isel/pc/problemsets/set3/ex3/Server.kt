@@ -18,7 +18,7 @@ class Server private constructor(
     private val serverSocket: AsynchronousServerSocketChannel,
     private val controlQueue: MessageQueue<ControlMessage>,
 ) {
-
+    private val limitClients = 4
     private val clientSet = mutableSetOf<RemoteClient>()
     private val topicSet = TopicSet()
     private var currentClientId = 0
@@ -64,8 +64,13 @@ class Server private constructor(
         scope.coroutineContext[Job]?.join()
     }
 
-    private suspend fun handleNewClientSocket(clientSocket: AsynchronousSocketChannel) {
+    private fun handleNewClientSocket(clientSocket: AsynchronousSocketChannel) {
         if (state != State.RUNNING) {
+            clientSocket.close()
+            return
+        }
+        if (clientSet.size >= limitClients) {
+
             clientSocket.close()
             return
         }
@@ -133,14 +138,24 @@ class Server private constructor(
         try {
             while (state != State.SHUTDOWN) {
                 try {
-                    when (val controlMessage =  controlQueue.dequeue()) {
-                        is ControlMessage.NewClientSocket -> handleNewClientSocket(controlMessage.clientSocket)
-                        is ControlMessage.RemoteClientEnded -> handleRemoteClientEnded(controlMessage.remoteClient)
-                        is ControlMessage.Publish -> handlePublish(controlMessage.message)
-                        is ControlMessage.Subscribe -> handleSubscribe(controlMessage.topicName, controlMessage.subscriber)
-                        is ControlMessage.Unsubscribe -> handleUnsubscribe(controlMessage.topicName, controlMessage.subscriber)
-                        ControlMessage.Shutdowm -> handleShutdown()
-                        ControlMessage.AcceptLoopEnded -> handleAcceptLoopEnded()
+                    supervisorScope {
+                        when (val controlMessage = controlQueue.dequeue()) {
+                            is ControlMessage.NewClientSocket -> handleNewClientSocket(controlMessage.clientSocket)
+                            is ControlMessage.RemoteClientEnded -> handleRemoteClientEnded(controlMessage.remoteClient)
+                            is ControlMessage.Publish -> handlePublish(controlMessage.message)
+                            is ControlMessage.Subscribe -> handleSubscribe(
+                                controlMessage.topicName,
+                                controlMessage.subscriber
+                            )
+
+                            is ControlMessage.Unsubscribe -> handleUnsubscribe(
+                                controlMessage.topicName,
+                                controlMessage.subscriber
+                            )
+
+                            ControlMessage.Shutdowm -> handleShutdown()
+                            ControlMessage.AcceptLoopEnded -> handleAcceptLoopEnded()
+                        }
                     }
                 } catch (ex: Throwable) {
                     logger.info("Unexpected exception, ignoring it", ex)
@@ -159,7 +174,7 @@ class Server private constructor(
                 controlQueue.enqueue(ControlMessage.NewClientSocket(clientSocket))
             }
         } catch (ex: Exception) {
-            logger.info("Exception on accept loop: {}", ex.message)
+            logger.info(" Exception on accept loop: {}", ex.message)
             // continue
         } finally {
             controlQueue.enqueue(ControlMessage.AcceptLoopEnded)
