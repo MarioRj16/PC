@@ -7,6 +7,8 @@ import pt.isel.pc.problemsets.utils.NodeLinkedList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.jvm.Throws
 
 class MessageQueue<T> {
 
@@ -35,14 +37,11 @@ class MessageQueue<T> {
     }
 
     suspend fun dequeue(): T {
-        var isFastPath = false
         var message: T? = null
 
-        return try {
-            suspendCancellableCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
                 lock.withLock {
                     if (!messages.empty) {
-                        isFastPath = true
                         message = messages.pull().value
                         continuation.resume(message!!)
                     } else {
@@ -51,18 +50,12 @@ class MessageQueue<T> {
                             lock.withLock {
                                 if (!requestNode.value.isDone) {
                                     requests.remove(requestNode)
+                                    continuation.resumeWithException(CancellationException("Request was cancelled"))
                                 }
                             }
                         }
                     }
                 }
             }
-        } catch (e: CancellationException) {
-            if (isFastPath) {
-                return message!!
-            } else {
-                throw e
-            }
         }
-    }
 }

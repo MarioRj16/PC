@@ -32,6 +32,9 @@ class LineReader(
                 return null
             }
             val readLen = reader(byteBuffer)
+            if(readLen == -1) {
+                throw IllegalStateException("End of input reached")
+            }
             isEndOfInput = readLen == 0
             byteBuffer.flip()
             when (val decodingResult = decoder.decode(byteBuffer, charBuffer, isEndOfInput)) {

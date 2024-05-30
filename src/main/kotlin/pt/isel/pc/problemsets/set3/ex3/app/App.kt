@@ -7,20 +7,20 @@ import java.net.InetSocketAddress
 
 fun main() {
     // start server
-    runBlocking {
-        val server = Server.start(InetSocketAddress("0.0.0.0", 23))
-        logger.info("Started server")
 
-        // register shutdown hook
-        val shutdownThread = Thread {
-            runBlocking {
-                logger.info("Starting shutdown process")
-                server.shutdown()
-                server.join()
-            }
+    val server = Server.start(InetSocketAddress("0.0.0.0", 23))
+    logger.info("Started server")
+
+    // register shutdown hook
+    val shutdownThread = Thread {
+        runBlocking {
+            logger.info("Starting shutdown process")
+            server.shutdown()
+            server.join()
         }
-        Runtime.getRuntime().addShutdownHook(shutdownThread)
-
+    }
+    Runtime.getRuntime().addShutdownHook(shutdownThread)
+    runBlocking {
             // wait for server to end
             logger.info("Waiting for server to end")
             server.join()
@@ -29,3 +29,5 @@ fun main() {
 }
 
 private val logger = LoggerFactory.getLogger("App")
+
+

@@ -27,10 +27,11 @@ class RemoteClient private constructor(
     private val controlQueue = MessageQueue<ControlMessage>()
     private var state = State.RUNNING
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.Default)
+
 
     init {
-        scope.launch {
+        scope.launch{
             controlLoop()
         }
         scope.launch {
@@ -97,18 +98,18 @@ class RemoteClient private constructor(
         clientSocket.suspendWriteLn(ByteBuffer.wrap(serialize(response).toByteArray()))
     }
 
-    private suspend fun handleClientSocketError(throwable: Throwable) {
+    private fun handleClientSocketError(throwable: Throwable) {
         logger.info("Client socket operation thrown: {}", throwable.message)
     }
 
-    private suspend fun handleClientSocketEnded() {
+    private fun handleClientSocketEnded() {
         if (state != State.RUNNING) {
             return
         }
         state = State.SHUTTING_DOWN
     }
 
-    private suspend fun handleReadLoopEnded() {
+    private fun handleReadLoopEnded() {
         state = State.SHUTDOWN
     }
 
@@ -125,9 +126,6 @@ class RemoteClient private constructor(
                     ControlMessage.ClientSocketEnded -> handleClientSocketEnded()
                     is ControlMessage.ClientSocketError -> handleClientSocketError(controlMessage.throwable)
                     ControlMessage.ReadLoopEnded -> handleReadLoopEnded()
-                    else -> {
-                        logger.info("[{}] unexpected control message: {}", clientId, controlMessage)
-                    }
                 }
             }
 

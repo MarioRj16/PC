@@ -23,9 +23,9 @@ class Server private constructor(
     private val topicSet = TopicSet()
     private var currentClientId = 0
     private var state = State.RUNNING
-    private var acceptThreadEnded = false
+    private var acceptCoroutineEnded = false
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     init {
         scope.launch {
@@ -80,7 +80,7 @@ class Server private constructor(
         topicSet.unsubscribe(remoteClient)
         logger.info("Server: remote client ended {}", remoteClient.clientId)
         if (state == State.SHUTTING_DOWN) {
-            if (clientSet.isEmpty() && acceptThreadEnded) {
+            if (clientSet.isEmpty() && acceptCoroutineEnded) {
                 state = State.SHUTDOWN
             }
         }
@@ -119,7 +119,7 @@ class Server private constructor(
     }
 
     private suspend fun handleAcceptLoopEnded() {
-        acceptThreadEnded = true
+        acceptCoroutineEnded = true
         if (state != State.SHUTTING_DOWN) {
             logger.info("Accept loop ended unexpectedly")
             startShutdown()
