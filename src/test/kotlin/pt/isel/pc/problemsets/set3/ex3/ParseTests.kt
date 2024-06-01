@@ -98,4 +98,16 @@ class ParseTests {
             ),
         )
     }
+
+
+
+
+    @Test
+    fun `test parse cases with long topic name`() {
+        val longTopicName = "t".repeat(256)
+        assertEquals(
+            ClientRequest.Publish(TopicName(longTopicName), "hello world"),
+            parseClientRequest("PUBLISH $longTopicName hello world").successOrThrow,
+        )
+    }
 }
