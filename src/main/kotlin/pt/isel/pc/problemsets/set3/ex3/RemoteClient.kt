@@ -23,6 +23,7 @@ class RemoteClient private constructor(
     private val server: Server,
     val clientId: String,
     private val clientSocket: AsynchronousSocketChannel,
+    private val clients: ClientSet
 ) : Subscriber {
     private val controlQueue = MessageQueue<ControlMessage>()
     private var state = State.RUNNING
@@ -31,6 +32,7 @@ class RemoteClient private constructor(
 
 
     init {
+        clients.addClient(this)
         scope.launch{
             controlLoop()
         }
@@ -72,20 +74,26 @@ class RemoteClient private constructor(
         val response = when (val res = parseClientRequest(line)) {
             is SuccessOrError.Success -> when (val request = res.value) {
                 is ClientRequest.Publish -> {
-                    server.publish(PublishedMessage(request.topic, request.message))
-                    ClientResponse.OkPublish(server.getNumberOfSubscribers(request.topic))
+                    //change here
+                    clients.notifySubscribers(PublishedMessage(request.topic, request.message))
+                   // server.publish(PublishedMessage(request.topic, request.message))
+                    ClientResponse.OkPublish(clients.getNumberOfSubscribers(request.topic))
                 }
 
                 is ClientRequest.Subscribe -> {
                     request.topics.forEach {
-                        server.subscribe(it, this)
+                        //here
+                        //server.subscribe(it, this)
+                        clients.subscribe(it,this)
                     }
                     ClientResponse.OkSubscribe
                 }
 
                 is ClientRequest.Unsubscribe -> {
                     request.topics.forEach {
-                        server.unsubscribe(it, this)
+                        //here
+                        //server.unsubscribe(it, this)
+                        clients.unsubscribe(it,this)
                     }
                     ClientResponse.OkUnsubscribe
                 }
@@ -131,6 +139,7 @@ class RemoteClient private constructor(
 
         } finally {
             logger.info("[{}] remote client ending", clientId)
+            clients.removeClient(this)
             server.remoteClientEnded(this)
         }
     }
@@ -159,11 +168,12 @@ class RemoteClient private constructor(
 
     companion object {
         private val logger = LoggerFactory.getLogger(RemoteClient::class.java)
-        fun start(server: Server, clientId: String, socket: AsynchronousSocketChannel): RemoteClient {
+        fun start(server: Server, clientId: String, socket: AsynchronousSocketChannel, clients: ClientSet): RemoteClient {
             return RemoteClient(
                 server,
                 clientId,
                 socket,
+                clients
             )
         }
     }

@@ -19,8 +19,7 @@ class Server private constructor(
     private val controlQueue: MessageQueue<ControlMessage>,
 ) {
     private val limitClients = 4
-    private val clientSet = mutableSetOf<RemoteClient>()
-    private val topicSet = TopicSet()
+    private val clientSet = ClientSet()
     private var currentClientId = 0
     private var state = State.RUNNING
     private var acceptCoroutineEnded = false
@@ -40,24 +39,8 @@ class Server private constructor(
         controlQueue.enqueue(ControlMessage.Shutdowm)
     }
 
-    fun publish(message: PublishedMessage) {
-        controlQueue.enqueue(ControlMessage.Publish(message))
-    }
-
-    fun subscribe(topicName: TopicName, subscriber: Subscriber) {
-        controlQueue.enqueue(ControlMessage.Subscribe(topicName, subscriber))
-    }
-
-    fun unsubscribe(topicName: TopicName, subscriber: Subscriber) {
-        controlQueue.enqueue(ControlMessage.Unsubscribe(topicName, subscriber))
-    }
-
     fun remoteClientEnded(client: RemoteClient) {
         controlQueue.enqueue(ControlMessage.RemoteClientEnded(client))
-    }
-
-    fun getNumberOfSubscribers(topic: TopicName): Int{
-        return topicSet.getSubscribersFor(topic).size
     }
 
     suspend fun join() {
@@ -65,19 +48,21 @@ class Server private constructor(
     }
 
     private fun handleNewClientSocket(clientSocket: AsynchronousSocketChannel) {
-        if (state != State.RUNNING || clientSet.size >= limitClients) {
+        if (state != State.RUNNING) {
+            clientSocket.close()
+            return
+        }
+        if (clientSet.size() >= limitClients) {
+            logger.info("Server: too many clients, closing new client")
             clientSocket.close()
             return
         }
         val newId = currentClientId++
-        val remoteClient = RemoteClient.start(this, newId.toString(), clientSocket)
-        clientSet.add(remoteClient)
+        RemoteClient.start(this, newId.toString(), clientSocket, clientSet)
         logger.info("Server: started new remote client")
     }
 
     private fun handleRemoteClientEnded(remoteClient: RemoteClient) {
-        clientSet.remove(remoteClient)
-        topicSet.unsubscribe(remoteClient)
         logger.info("Server: remote client ended {}", remoteClient.clientId)
         if (state == State.SHUTTING_DOWN) {
             if (clientSet.isEmpty() && acceptCoroutineEnded) {
@@ -86,24 +71,8 @@ class Server private constructor(
         }
     }
 
-    private fun handlePublish(message: PublishedMessage) {
-        val subscribers = topicSet.getSubscribersFor(message.topicName)
-        subscribers.forEach {
-            it.send(message)
-        }
-    }
 
-
-
-    private fun handleSubscribe(topicName: TopicName, subscriber: Subscriber) {
-        topicSet.subscribe(topicName, subscriber)
-    }
-
-    private fun handleUnsubscribe(topicName: TopicName, subscriber: Subscriber) {
-        topicSet.unsubscribe(topicName, subscriber)
-    }
-
-    private suspend fun handleShutdown() {
+    private fun handleShutdown() {
         if (state != State.RUNNING) {
             return
         }
@@ -112,9 +81,7 @@ class Server private constructor(
 
     private fun startShutdown() {
         serverSocket.close()
-        clientSet.forEach {
-            it.shutdown()
-        }
+        clientSet.shutdown()
         state = State.SHUTTING_DOWN
     }
 
@@ -137,16 +104,6 @@ class Server private constructor(
                         when (val controlMessage = controlQueue.dequeue()) {
                             is ControlMessage.NewClientSocket -> handleNewClientSocket(controlMessage.clientSocket)
                             is ControlMessage.RemoteClientEnded -> handleRemoteClientEnded(controlMessage.remoteClient)
-                            is ControlMessage.Publish -> handlePublish(controlMessage.message)
-                            is ControlMessage.Subscribe -> handleSubscribe(
-                                controlMessage.topicName,
-                                controlMessage.subscriber
-                            )
-
-                            is ControlMessage.Unsubscribe -> handleUnsubscribe(
-                                controlMessage.topicName,
-                                controlMessage.subscriber
-                            )
 
                             ControlMessage.Shutdowm -> handleShutdown()
                             ControlMessage.AcceptLoopEnded -> handleAcceptLoopEnded()
@@ -189,9 +146,6 @@ class Server private constructor(
     private sealed interface ControlMessage {
         data class NewClientSocket(val clientSocket: AsynchronousSocketChannel) : ControlMessage
         data class RemoteClientEnded(val remoteClient: RemoteClient) : ControlMessage
-        data class Publish(val message: PublishedMessage) : ControlMessage
-        data class Subscribe(val topicName: TopicName, val subscriber: Subscriber) : ControlMessage
-        data class Unsubscribe(val topicName: TopicName, val subscriber: Subscriber) : ControlMessage
         object Shutdowm : ControlMessage
         object AcceptLoopEnded : ControlMessage
     }
