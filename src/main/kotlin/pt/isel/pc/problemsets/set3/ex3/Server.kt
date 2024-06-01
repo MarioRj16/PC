@@ -127,7 +127,6 @@ class Server private constructor(
             }
         } catch (ex: Exception) {
             logger.info(" Exception on accept loop: {}", ex.message)
-            // continue
         } finally {
             controlQueue.enqueue(ControlMessage.AcceptLoopEnded)
         }

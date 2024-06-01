@@ -74,16 +74,12 @@ class RemoteClient private constructor(
         val response = when (val res = parseClientRequest(line)) {
             is SuccessOrError.Success -> when (val request = res.value) {
                 is ClientRequest.Publish -> {
-                    //change here
                     clients.notifySubscribers(PublishedMessage(request.topic, request.message))
-                   // server.publish(PublishedMessage(request.topic, request.message))
                     ClientResponse.OkPublish(clients.getNumberOfSubscribers(request.topic))
                 }
 
                 is ClientRequest.Subscribe -> {
                     request.topics.forEach {
-                        //here
-                        //server.subscribe(it, this)
                         clients.subscribe(it,this)
                     }
                     ClientResponse.OkSubscribe
@@ -91,8 +87,6 @@ class RemoteClient private constructor(
 
                 is ClientRequest.Unsubscribe -> {
                     request.topics.forEach {
-                        //here
-                        //server.unsubscribe(it, this)
                         clients.unsubscribe(it,this)
                     }
                     ClientResponse.OkUnsubscribe
