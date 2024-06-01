@@ -53,15 +53,21 @@ class ClientSet {
 
 
     fun subscribe(topicName: TopicName, subscriber: Subscriber) {
-        topicSet.subscribe(topicName, subscriber)
+        lock.withLock {
+            topicSet.subscribe(topicName, subscriber)
+        }
     }
 
     fun unsubscribe(topicName: TopicName, subscriber: Subscriber) {
-        topicSet.unsubscribe(topicName, subscriber)
+        lock.withLock {
+            topicSet.unsubscribe(topicName, subscriber)
+        }
     }
 
     fun getNumberOfSubscribers(topic: TopicName): Int{
-        return topicSet.getSubscribersFor(topic).size
+        lock.withLock {
+            return topicSet.getSubscribersFor(topic).size
+        }
     }
 }
 
